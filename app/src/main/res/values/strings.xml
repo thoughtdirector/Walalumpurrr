@@ -23,4 +23,9 @@
     <string name="spanish_unavailable">El idioma español no está disponible</string>
     <string name="notification_reading_system_initialized">Sistema de lectura de notificaciones iniciado</string>
     <string name="tts_initialization_error">Error al inicializar TTS</string>
+    <string name="service_activated_by_schedule">Servicio activado por horario programado</string>
+    <string name="service_deactivated_by_schedule">Servicio desactivado por horario programado</string>
+    <string name="schedule_info_format">Horario activo: %1$s a %2$s\nDías: %3$s\nPróxima actualización: %4$s</string>
+    <string name="no_scheduled">No programado</string>
+    <string name="app_description">Esta aplicación lee en voz alta las notificaciones de apps como Nequi y WhatsApp cuando las recibes.</string>
 </resources>

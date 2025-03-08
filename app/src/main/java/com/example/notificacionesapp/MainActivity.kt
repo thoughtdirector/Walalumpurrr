@@ -18,6 +18,8 @@ import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
@@ -28,13 +30,32 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var scheduleButton: MaterialButton
     private lateinit var tts: TextToSpeech
     private lateinit var scheduleManager: ScheduleManager
+    private lateinit var descriptionText: TextView // Reutilizar este TextView existente
 
     private val permissionRequestCode = 123
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action == updateStatusAction) {
+                // Extraer información adicional del intent
+                val serviceState = intent.getBooleanExtra("service_state", NotificationService.isServiceActive)
+                val scheduleActivated = intent.getBooleanExtra("schedule_activated", false)
+
+                // Actualizar la UI basado en el estado recibido
+                updateSwitchWithoutTrigger(serviceState)
+
+                if (scheduleActivated) {
+                    // Mostrar un Toast informativo sobre la activación/desactivación por horario
+                    val message = if (serviceState) {
+                        "Servicio activado por horario programado"
+                    } else {
+                        "Servicio desactivado por horario programado"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                }
+
                 updateStatus()
+                updateNextScheduleInfo()
             }
         }
     }
@@ -47,6 +68,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         serviceButton = findViewById(R.id.serviceButton)
         powerSwitch = findViewById(R.id.powerSwitch)
         scheduleButton = findViewById(R.id.scheduleButton)
+        descriptionText = findViewById(R.id.descriptionText)
 
         // Inicializar ScheduleManager
         scheduleManager = ScheduleManager(this)
@@ -100,11 +122,70 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
 
         updateStatus()
+        updateNextScheduleInfo()
+    }
+
+    private fun updateNextScheduleInfo() {
+        if (scheduleManager.isScheduleEnabled()) {
+            val startTime = formatTime(scheduleManager.getStartHour(), scheduleManager.getStartMinute())
+            val endTime = formatTime(scheduleManager.getEndHour(), scheduleManager.getEndMinute())
+
+            val nextEvent = scheduleManager.getNextScheduledEvent()
+            val nextEventTime = if (nextEvent != null) {
+                val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                dateFormat.format(nextEvent.time)
+            } else {
+                "No programado"
+            }
+
+            val daysString = buildEnabledDaysString()
+
+            descriptionText.text = String.format(
+                Locale.getDefault(),
+                "Horario activo: %s a %s\nDías: %s\nPróxima actualización: %s",
+                startTime, endTime, daysString, nextEventTime
+            )
+        } else {
+            descriptionText.text = "Esta aplicación lee en voz alta las notificaciones de apps como Nequi y WhatsApp cuando las recibes."
+        }
+    }
+
+    private fun buildEnabledDaysString(): String {
+        val days = mutableListOf<String>()
+        val dayNames = arrayOf("", "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
+
+        for (i in Calendar.SUNDAY..Calendar.SATURDAY) {
+            if (scheduleManager.isDayEnabled(i)) {
+                days.add(dayNames[i])
+            }
+        }
+
+        return days.joinToString(", ")
+    }
+
+    private fun formatTime(hour: Int, minute: Int): String {
+        return String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+    }
+
+    private fun updateSwitchWithoutTrigger(checked: Boolean) {
+        var ignoreNextChange = true
+
+        val currentState = powerSwitch.isChecked
+
+        if (currentState != checked) {
+            // Establecer el nuevo estado
+            powerSwitch.isChecked = checked
+        }
     }
 
     private fun checkAndRequestPermissions() {
         val audioPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
         val modifyAudioPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS)
+        val notificationPermission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            PackageManager.PERMISSION_GRANTED
+        }
 
         val permissionsNeeded = ArrayList<String>()
 
@@ -114,6 +195,11 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
         if (modifyAudioPermission != PackageManager.PERMISSION_GRANTED) {
             permissionsNeeded.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)
+        }
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+            notificationPermission != PackageManager.PERMISSION_GRANTED) {
+            permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS)
         }
 
         if (permissionsNeeded.isNotEmpty()) {
@@ -195,14 +281,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             powerSwitch.isEnabled = true
 
             // Restaurar el estado del switch si el servicio estaba activo
-            powerSwitch.isChecked = NotificationService.isServiceActive
+            updateSwitchWithoutTrigger(NotificationService.isServiceActive)
 
             // Verificar el estado según el horario programado
             updateStatusText()
         } else {
             statusText.text = "❌ Servicio no disponible: concede permisos"
             statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
-            powerSwitch.isChecked = false
+            updateSwitchWithoutTrigger(false)
             powerSwitch.isEnabled = false
             NotificationService.isServiceActive = false
         }
@@ -229,12 +315,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onResume()
         try {
             val filter = IntentFilter(updateStatusAction)
-            // Usar Intent con el paquete actual como destino (explícito)
-            applicationContext.registerReceiver(statusReceiver, filter)
+
+            // Usar un enfoque alternativo: Intent explícito (específico de la aplicación)
+            // Esto evita la necesidad de flags de exportación
+            registerReceiver(statusReceiver, filter)
         } catch (e: Exception) {
             Log.e("MainActivity", "Error al registrar receiver: ${e.message}")
         }
         updateStatus()
+        updateNextScheduleInfo()
     }
 
     override fun onPause() {

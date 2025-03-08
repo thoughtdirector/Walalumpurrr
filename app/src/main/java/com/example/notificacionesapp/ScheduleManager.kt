@@ -33,6 +33,104 @@ class ScheduleManager(private val context: Context) {
         const val KEY_SUNDAY = "sunday_enabled"
     }
 
+    /**
+     * Obtiene cuándo será el próximo evento programado (inicio o fin)
+     */
+    fun getNextScheduledEvent(): Calendar? {
+        if (!isScheduleEnabled()) return null
+
+        val startEvent = getNextScheduledTime(true)
+        val endEvent = getNextScheduledTime(false)
+
+        return if (startEvent == null && endEvent == null) {
+            null
+        } else if (startEvent == null) {
+            endEvent
+        } else if (endEvent == null) {
+            startEvent
+        } else {
+            if (startEvent.timeInMillis < endEvent.timeInMillis) startEvent else endEvent
+        }
+    }
+
+    /**
+     * Calcula la próxima hora programada para inicio o fin
+     */
+    private fun getNextScheduledTime(isStart: Boolean): Calendar? {
+        val hour = if (isStart) getStartHour() else getEndHour()
+        val minute = if (isStart) getStartMinute() else getEndMinute()
+
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, hour)
+            set(Calendar.MINUTE, minute)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+
+        // Si la hora ya pasó hoy, añadir un día
+        if (calendar.timeInMillis <= System.currentTimeMillis()) {
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+        }
+
+        // Buscar el próximo día habilitado
+        val currentDay = calendar.get(Calendar.DAY_OF_WEEK)
+        var daysChecked = 0
+        var dayToAdd = 0
+        var foundEnabledDay = false
+
+        while (daysChecked < 7 && !foundEnabledDay) {
+            val nextDay = (currentDay + dayToAdd - 1) % 7 + 1
+            if (isDayEnabled(nextDay)) {
+                if (dayToAdd > 0) {
+                    calendar.add(Calendar.DAY_OF_YEAR, dayToAdd)
+                }
+                foundEnabledDay = true
+                break
+            }
+            dayToAdd++
+            daysChecked++
+        }
+
+        return if (foundEnabledDay) calendar else null
+    }
+
+    /**
+     * Verifica si el horario programado es nocturno (cuando hora fin < hora inicio)
+     */
+    fun isNightSchedule(): Boolean {
+        val startHour = getStartHour()
+        val startMinute = getStartMinute()
+        val endHour = getEndHour()
+        val endMinute = getEndMinute()
+
+        val startTime = startHour * 60 + startMinute
+        val endTime = endHour * 60 + endMinute
+
+        return endTime < startTime
+    }
+
+    /**
+     * Verifica si la hora actual está dentro de un horario nocturno
+     */
+    fun isTimeWithinNightSchedule(): Boolean {
+        if (!isNightSchedule()) return false
+
+        val currentCal = Calendar.getInstance()
+        val currentHour = currentCal.get(Calendar.HOUR_OF_DAY)
+        val currentMinute = currentCal.get(Calendar.MINUTE)
+
+        val startHour = getStartHour()
+        val startMinute = getStartMinute()
+        val endHour = getEndHour()
+        val endMinute = getEndMinute()
+
+        val currentTime = currentHour * 60 + currentMinute
+        val startTime = startHour * 60 + startMinute
+        val endTime = endHour * 60 + endMinute
+
+        return currentTime >= startTime || currentTime <= endTime
+    }
+
     // Guardar configuración de horario
     fun saveScheduleSettings(
         isEnabled: Boolean,
@@ -51,6 +149,18 @@ class ScheduleManager(private val context: Context) {
 
         if (isEnabled) {
             setScheduleAlarms()
+
+            // Verificar el estado actual inmediatamente
+            val shouldBeActive = shouldServiceBeActive()
+            NotificationService.isServiceActive = shouldBeActive
+
+            // Notificar a la UI del cambio
+            val updateIntent = Intent(MainActivity.updateStatusAction).apply {
+                setPackage(context.packageName)
+                putExtra("service_state", shouldBeActive)
+                putExtra("schedule_activated", true)
+            }
+            context.sendBroadcast(updateIntent)
         } else {
             cancelScheduleAlarms()
         }
@@ -65,25 +175,26 @@ class ScheduleManager(private val context: Context) {
         val endHour = sharedPrefs.getInt(KEY_END_HOUR, 18)
         val endMinute = sharedPrefs.getInt(KEY_END_MINUTE, 0)
 
-        // Configurar alarma de inicio
+        // Configurar calendario para inicio y fin hoy
         val startCalendar = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, startHour)
             set(Calendar.MINUTE, startMinute)
             set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
 
-            // Si la hora ya pasó, programar para mañana
+            // Si la hora ya pasó hoy, programar para mañana
             if (timeInMillis <= System.currentTimeMillis()) {
                 add(Calendar.DAY_OF_YEAR, 1)
             }
         }
 
-        // Configurar alarma de fin
         val endCalendar = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, endHour)
             set(Calendar.MINUTE, endMinute)
             set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
 
-            // Si la hora ya pasó, programar para mañana
+            // Si la hora ya pasó hoy, programar para mañana
             if (timeInMillis <= System.currentTimeMillis()) {
                 add(Calendar.DAY_OF_YEAR, 1)
             }
@@ -113,33 +224,64 @@ class ScheduleManager(private val context: Context) {
             // Configurar alarmas con manejo de excepciones
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.set(
+                    alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         startCalendar.timeInMillis,
                         startPendingIntent
                     )
 
-                    alarmManager.set(
+                    alarmManager.setExactAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         endCalendar.timeInMillis,
                         endPendingIntent
                     )
                 } else {
                     // Fallback a alarmas no exactas
-                    alarmManager.set(
+                    alarmManager.setAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         startCalendar.timeInMillis,
                         startPendingIntent
                     )
 
-                    alarmManager.set(
+                    alarmManager.setAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         endCalendar.timeInMillis,
                         endPendingIntent
                     )
                 }
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    startCalendar.timeInMillis,
+                    startPendingIntent
+                )
+
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    endCalendar.timeInMillis,
+                    endPendingIntent
+                )
             } else {
                 // Para versiones anteriores
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    startCalendar.timeInMillis,
+                    startPendingIntent
+                )
+
+                alarmManager.setExact(
+                    AlarmManager.RTC_WAKEUP,
+                    endCalendar.timeInMillis,
+                    endPendingIntent
+                )
+            }
+
+            Log.d("ScheduleManager", "Alarmas programadas: inicio ${startCalendar.time}, fin ${endCalendar.time}")
+        } catch (e: Exception) {
+            Log.e("ScheduleManager", "Error al programar alarmas: ${e.message}")
+
+            // Intentar con método menos exacto
+            try {
                 alarmManager.set(
                     AlarmManager.RTC_WAKEUP,
                     startCalendar.timeInMillis,
@@ -151,11 +293,11 @@ class ScheduleManager(private val context: Context) {
                     endCalendar.timeInMillis,
                     endPendingIntent
                 )
-            }
 
-            Log.d("ScheduleManager", "Alarmas programadas: inicio ${startHour}:${startMinute}, fin ${endHour}:${endMinute}")
-        } catch (e: Exception) {
-            Log.e("ScheduleManager", "Error al programar alarmas: ${e.message}")
+                Log.d("ScheduleManager", "Alarmas programadas con método alternativo")
+            } catch (e2: Exception) {
+                Log.e("ScheduleManager", "Error fatal al programar alarmas: ${e2.message}")
+            }
         }
 
         // Verificar el estado actual inmediatamente
@@ -189,15 +331,17 @@ class ScheduleManager(private val context: Context) {
     }
 
     // Verificar el estado actual y aplicarlo
-    // Verificar el estado actual y aplicarlo
     private fun checkCurrentStatus() {
         val shouldBeActive = shouldServiceBeActive()
         Log.d("ScheduleManager", "Verificación de estado: debería estar activo = $shouldBeActive")
         NotificationService.isServiceActive = shouldBeActive
 
         // Enviar broadcast para notificar a la UI usando Intent explícito
-        val updateIntent = Intent(MainActivity.updateStatusAction)
-        updateIntent.setPackage(context.packageName) // Hace que sea explícito
+        val updateIntent = Intent(MainActivity.updateStatusAction).apply {
+            setPackage(context.packageName) // Hace que sea explícito
+            putExtra("service_state", shouldBeActive)
+            putExtra("schedule_activated", true)
+        }
         context.sendBroadcast(updateIntent)
     }
 
