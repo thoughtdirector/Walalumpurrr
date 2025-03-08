@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">NotificacionesApp</string>
+
+    <!-- MainActivity Strings -->
+    <string name="service_activated">Servicio de lectura activado</string>
+    <string name="service_deactivated">Servicio de lectura desactivado</string>
+    <string name="testing_voice_service">Probando servicio de voz...</string>
+    <string name="service_working_correctly">El servicio está funcionando correctamente y leerá tus notificaciones</string>
+    <string name="activate_service_first">Activa el servicio primero</string>
+    <string name="error_opening_config">Error al abrir configuración: %1$s</string>
+    <string name="all_permissions_granted">Todos los permisos concedidos</string>
+    <string name="audio_permissions_needed">Se necesitan permisos de audio para el funcionamiento correcto</string>
+    <string name="service_active_scheduled">✅ Servicio activo según horario</string>
+    <string name="service_waiting">⏰ Servicio en espera (fuera de horario)</string>
+    <string name="service_inactive">❌ Servicio inactivo: notificaciones silenciadas</string>
+    <string name="service_active_listening">✅ Servicio activo: escuchando notificaciones</string>
+    <string name="service_unavailable">❌ Servicio no disponible: concede permisos</string>
+    <string name="permission_required">Permiso necesario</string>
+    <string name="notification_access_message">Esta app necesita acceso a tus notificaciones para funcionar. Por favor, activa el permiso para \'NotificacionesApp\'.</string>
+    <string name="configure">Configurar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="spanish_unavailable">El idioma español no está disponible</string>
+    <string name="notification_reading_system_initialized">Sistema de lectura de notificaciones iniciado</string>
+    <string name="tts_initialization_error">Error al inicializar TTS</string>
+</resources>
