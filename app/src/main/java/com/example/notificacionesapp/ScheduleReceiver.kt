@@ -21,38 +21,59 @@ class ScheduleReceiver : BroadcastReceiver() {
             ScheduleManager.ACTION_START_SERVICE -> {
                 if (scheduleManager.isScheduleEnabled() &&
                     scheduleManager.isDayEnabled(Calendar.getInstance().get(Calendar.DAY_OF_WEEK))) {
-                    NotificationService.isServiceActive = true
-                    Log.d("ScheduleReceiver", "Servicio activado por horario")
+                    // Activar servicio directamente
+                    val serviceIntent = Intent(context, NotificationService::class.java)
+                    serviceIntent.action = NotificationService.ACTION_START_SERVICE
 
-                    // Enviar broadcast para notificar a la UI con datos adicionales
-                    val updateIntent = Intent(MainActivity.updateStatusAction).apply {
-                        setPackage(context.packageName)
-                        putExtra("service_state", true) // Indicar que el servicio está activo
-                        putExtra("schedule_activated", true) // Activado por horario
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent)
+                        } else {
+                            context.startService(serviceIntent)
+                        }
+
+                        Log.d("ScheduleReceiver", "Servicio iniciado por horario")
+
+                        // Notificar a la UI
+                        val updateIntent = Intent(MainActivity.updateStatusAction)
+                        updateIntent.setPackage(context.packageName)
+                        updateIntent.putExtra("service_state", true)
+                        updateIntent.putExtra("schedule_activated", true)
+                        context.sendBroadcast(updateIntent)
+                    } catch (e: Exception) {
+                        Log.e("ScheduleReceiver", "Error al iniciar servicio: ${e.message}")
                     }
-                    context.sendBroadcast(updateIntent)
                 }
 
-                // Programar la próxima alarma para mañana o el próximo día habilitado
+                // Programar la próxima alarma
                 rescheduleAlarm(context, action)
             }
+
             ScheduleManager.ACTION_STOP_SERVICE -> {
                 if (scheduleManager.isScheduleEnabled()) {
-                    NotificationService.isServiceActive = false
-                    Log.d("ScheduleReceiver", "Servicio desactivado por horario")
+                    // Detener servicio directamente
+                    val serviceIntent = Intent(context, NotificationService::class.java)
+                    serviceIntent.action = NotificationService.ACTION_STOP_SERVICE
 
-                    // Enviar broadcast para notificar a la UI con datos adicionales
-                    val updateIntent = Intent(MainActivity.updateStatusAction).apply {
-                        setPackage(context.packageName)
-                        putExtra("service_state", false) // Indicar que el servicio está inactivo
-                        putExtra("schedule_activated", true) // Desactivado por horario
+                    try {
+                        context.startService(serviceIntent)
+                        Log.d("ScheduleReceiver", "Servicio detenido por horario")
+
+                        // Notificar a la UI
+                        val updateIntent = Intent(MainActivity.updateStatusAction)
+                        updateIntent.setPackage(context.packageName)
+                        updateIntent.putExtra("service_state", false)
+                        updateIntent.putExtra("schedule_activated", true)
+                        context.sendBroadcast(updateIntent)
+                    } catch (e: Exception) {
+                        Log.e("ScheduleReceiver", "Error al detener servicio: ${e.message}")
                     }
-                    context.sendBroadcast(updateIntent)
                 }
 
-                // Programar la próxima alarma para mañana o el próximo día habilitado
+                // Programar la próxima alarma
                 rescheduleAlarm(context, action)
             }
+
             Intent.ACTION_BOOT_COMPLETED -> {
                 // Manejar el arranque del dispositivo
                 if (scheduleManager.isScheduleEnabled()) {
@@ -61,15 +82,25 @@ class ScheduleReceiver : BroadcastReceiver() {
 
                     // Verificar si el servicio debería estar activo ahora
                     val shouldBeActive = scheduleManager.shouldServiceBeActive()
-                    NotificationService.isServiceActive = shouldBeActive
 
-                    // Notificar a la UI si está abierta
-                    val updateIntent = Intent(MainActivity.updateStatusAction).apply {
-                        setPackage(context.packageName)
-                        putExtra("service_state", shouldBeActive)
-                        putExtra("boot_completed", true)
+                    // Iniciar o detener el servicio según corresponda
+                    val serviceIntent = Intent(context, NotificationService::class.java)
+                    serviceIntent.action = if (shouldBeActive) {
+                        NotificationService.ACTION_START_SERVICE
+                    } else {
+                        NotificationService.ACTION_STOP_SERVICE
                     }
-                    context.sendBroadcast(updateIntent)
+
+                    try {
+                        if (shouldBeActive && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            context.startForegroundService(serviceIntent)
+                        } else {
+                            context.startService(serviceIntent)
+                        }
+                        Log.d("BootReceiver", "Servicio iniciado después de reinicio")
+                    } catch (e: Exception) {
+                        Log.e("BootReceiver", "Error al iniciar servicio después de reinicio: ${e.message}")
+                    }
                 }
             }
         }
@@ -80,9 +111,8 @@ class ScheduleReceiver : BroadcastReceiver() {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
         // Crear un nuevo intent para la próxima alarma
-        val newIntent = Intent(context, ScheduleReceiver::class.java).apply {
-            this.action = action
-        }
+        val newIntent = Intent(context, ScheduleReceiver::class.java)
+        newIntent.action = action
 
         val requestCode = if (action == ScheduleManager.ACTION_START_SERVICE) 1 else 2
 
@@ -93,16 +123,22 @@ class ScheduleReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        // Calcular la hora para mañana o el próximo día habilitado
-        val calendar = Calendar.getInstance()
-
-        if (action == ScheduleManager.ACTION_START_SERVICE) {
-            calendar.set(Calendar.HOUR_OF_DAY, scheduleManager.getStartHour())
-            calendar.set(Calendar.MINUTE, scheduleManager.getStartMinute())
+        // Calcular la hora para el próximo día habilitado
+        val targetHour = if (action == ScheduleManager.ACTION_START_SERVICE) {
+            scheduleManager.getStartHour()
         } else {
-            calendar.set(Calendar.HOUR_OF_DAY, scheduleManager.getEndHour())
-            calendar.set(Calendar.MINUTE, scheduleManager.getEndMinute())
+            scheduleManager.getEndHour()
         }
+
+        val targetMinute = if (action == ScheduleManager.ACTION_START_SERVICE) {
+            scheduleManager.getStartMinute()
+        } else {
+            scheduleManager.getEndMinute()
+        }
+
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.HOUR_OF_DAY, targetHour)
+        calendar.set(Calendar.MINUTE, targetMinute)
         calendar.set(Calendar.SECOND, 0)
         calendar.set(Calendar.MILLISECOND, 0)
 
@@ -111,22 +147,17 @@ class ScheduleReceiver : BroadcastReceiver() {
             calendar.add(Calendar.DAY_OF_YEAR, 1)
         }
 
-        // Buscar el próximo día habilitado (puede que no sea mañana)
-        var dayToAdd = 0
+        // Buscar el próximo día habilitado
         var daysChecked = 0
         var foundEnabledDay = false
 
         while (daysChecked < 7 && !foundEnabledDay) {
-            val checkDay = (calendar.get(Calendar.DAY_OF_WEEK) + dayToAdd) % 7
-            val dayToCheck = if (checkDay == 0) 7 else checkDay // Convertir 0 a 7 (domingo)
+            val dayToCheck = calendar.get(Calendar.DAY_OF_WEEK)
 
             if (scheduleManager.isDayEnabled(dayToCheck)) {
-                if (dayToAdd > 0) {
-                    calendar.add(Calendar.DAY_OF_YEAR, dayToAdd)
-                }
                 foundEnabledDay = true
             } else {
-                dayToAdd++
+                calendar.add(Calendar.DAY_OF_YEAR, 1)
                 daysChecked++
             }
         }
@@ -136,24 +167,14 @@ class ScheduleReceiver : BroadcastReceiver() {
             return
         }
 
-        // Configurar la alarma para el próximo día habilitado - usar método compatible con todas las versiones
+        // Configurar la alarma para el próximo día habilitado
         try {
-            // Intentar usar alarmas exactas si está disponible
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (alarmManager.canScheduleExactAlarms()) {
-                    alarmManager.setExactAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        calendar.timeInMillis,
-                        pendingIntent
-                    )
-                } else {
-                    // Fallback a alarma no exacta
-                    alarmManager.setAndAllowWhileIdle(
-                        AlarmManager.RTC_WAKEUP,
-                        calendar.timeInMillis,
-                        pendingIntent
-                    )
-                }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && alarmManager.canScheduleExactAlarms()) {
+                alarmManager.setExactAndAllowWhileIdle(
+                    AlarmManager.RTC_WAKEUP,
+                    calendar.timeInMillis,
+                    pendingIntent
+                )
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,

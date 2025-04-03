@@ -73,22 +73,18 @@ class ScheduleManager(private val context: Context) {
         }
 
         // Buscar el próximo día habilitado
-        val currentDay = calendar.get(Calendar.DAY_OF_WEEK)
         var daysChecked = 0
-        var dayToAdd = 0
         var foundEnabledDay = false
 
         while (daysChecked < 7 && !foundEnabledDay) {
-            val nextDay = (currentDay + dayToAdd - 1) % 7 + 1
-            if (isDayEnabled(nextDay)) {
-                if (dayToAdd > 0) {
-                    calendar.add(Calendar.DAY_OF_YEAR, dayToAdd)
-                }
+            val dayToCheck = calendar.get(Calendar.DAY_OF_WEEK)
+
+            if (isDayEnabled(dayToCheck)) {
                 foundEnabledDay = true
-                break
+            } else {
+                calendar.add(Calendar.DAY_OF_YEAR, 1)
+                daysChecked++
             }
-            dayToAdd++
-            daysChecked++
         }
 
         return if (foundEnabledDay) calendar else null
@@ -109,28 +105,6 @@ class ScheduleManager(private val context: Context) {
         return endTime < startTime
     }
 
-    /**
-     * Verifica si la hora actual está dentro de un horario nocturno
-     */
-    fun isTimeWithinNightSchedule(): Boolean {
-        if (!isNightSchedule()) return false
-
-        val currentCal = Calendar.getInstance()
-        val currentHour = currentCal.get(Calendar.HOUR_OF_DAY)
-        val currentMinute = currentCal.get(Calendar.MINUTE)
-
-        val startHour = getStartHour()
-        val startMinute = getStartMinute()
-        val endHour = getEndHour()
-        val endMinute = getEndMinute()
-
-        val currentTime = currentHour * 60 + currentMinute
-        val startTime = startHour * 60 + startMinute
-        val endTime = endHour * 60 + endMinute
-
-        return currentTime >= startTime || currentTime <= endTime
-    }
-
     // Guardar configuración de horario
     fun saveScheduleSettings(
         isEnabled: Boolean,
@@ -147,22 +121,15 @@ class ScheduleManager(private val context: Context) {
             putInt(KEY_END_MINUTE, endMinute)
         }.apply()
 
+        // Cancelar alarmas existentes antes de programar nuevas
+        cancelScheduleAlarms()
+
         if (isEnabled) {
             setScheduleAlarms()
 
             // Verificar el estado actual inmediatamente
             val shouldBeActive = shouldServiceBeActive()
-            NotificationService.isServiceActive = shouldBeActive
-
-            // Notificar a la UI del cambio
-            val updateIntent = Intent(MainActivity.updateStatusAction).apply {
-                setPackage(context.packageName)
-                putExtra("service_state", shouldBeActive)
-                putExtra("schedule_activated", true)
-            }
-            context.sendBroadcast(updateIntent)
-        } else {
-            cancelScheduleAlarms()
+            updateServiceState(shouldBeActive)
         }
     }
 
@@ -170,58 +137,46 @@ class ScheduleManager(private val context: Context) {
     fun setScheduleAlarms() {
         if (!isScheduleEnabled()) return
 
-        val startHour = sharedPrefs.getInt(KEY_START_HOUR, 8)
-        val startMinute = sharedPrefs.getInt(KEY_START_MINUTE, 0)
-        val endHour = sharedPrefs.getInt(KEY_END_HOUR, 18)
-        val endMinute = sharedPrefs.getInt(KEY_END_MINUTE, 0)
+        val startCalendar = getNextScheduledTime(true)
+        val endCalendar = getNextScheduledTime(false)
 
-        // Configurar calendario para inicio y fin hoy
-        val startCalendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, startHour)
-            set(Calendar.MINUTE, startMinute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-
-            // Si la hora ya pasó hoy, programar para mañana
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
+        if (startCalendar == null || endCalendar == null) {
+            Log.d("ScheduleManager", "No se pudieron configurar alarmas: ningún día habilitado")
+            return
         }
 
-        val endCalendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, endHour)
-            set(Calendar.MINUTE, endMinute)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-
-            // Si la hora ya pasó hoy, programar para mañana
-            if (timeInMillis <= System.currentTimeMillis()) {
-                add(Calendar.DAY_OF_YEAR, 1)
-            }
+        // Crear intent explícito para iniciar el servicio
+        val startServiceIntent = Intent(context, NotificationService::class.java).apply {
+            action = NotificationService.ACTION_START_SERVICE
         }
 
-        // Crear intents para las alarmas
-        val startIntent = Intent(context, ScheduleReceiver::class.java).apply {
+        // Crear intent explícito para detener el servicio
+        val stopServiceIntent = Intent(context, NotificationService::class.java).apply {
+            action = NotificationService.ACTION_STOP_SERVICE
+        }
+
+        // Crear intents para el receptor de broadcasts que activará los servicios
+        val startAlarmIntent = Intent(context, ScheduleReceiver::class.java).apply {
             action = ACTION_START_SERVICE
         }
 
-        val endIntent = Intent(context, ScheduleReceiver::class.java).apply {
+        val endAlarmIntent = Intent(context, ScheduleReceiver::class.java).apply {
             action = ACTION_STOP_SERVICE
         }
 
-        // PendingIntents
+        // PendingIntents para las alarmas
         val startPendingIntent = PendingIntent.getBroadcast(
-            context, 1, startIntent,
+            context, 1, startAlarmIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         val endPendingIntent = PendingIntent.getBroadcast(
-            context, 2, endIntent,
+            context, 2, endAlarmIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         try {
-            // Configurar alarmas con manejo de excepciones
+            // Configurar alarmas usando el método más compatible
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (alarmManager.canScheduleExactAlarms()) {
                     alarmManager.setExactAndAllowWhileIdle(
@@ -236,7 +191,7 @@ class ScheduleManager(private val context: Context) {
                         endPendingIntent
                     )
                 } else {
-                    // Fallback a alarmas no exactas
+                    // Fallback para Android 12+
                     alarmManager.setAndAllowWhileIdle(
                         AlarmManager.RTC_WAKEUP,
                         startCalendar.timeInMillis,
@@ -250,6 +205,7 @@ class ScheduleManager(private val context: Context) {
                     )
                 }
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                // Para Android 6.0+
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
                     startCalendar.timeInMillis,
@@ -277,10 +233,15 @@ class ScheduleManager(private val context: Context) {
             }
 
             Log.d("ScheduleManager", "Alarmas programadas: inicio ${startCalendar.time}, fin ${endCalendar.time}")
-        } catch (e: Exception) {
-            Log.e("ScheduleManager", "Error al programar alarmas: ${e.message}")
 
-            // Intentar con método menos exacto
+            // Verificar el estado actual e iniciar/detener servicio inmediatamente
+            val shouldBeActive = shouldServiceBeActive()
+            updateServiceState(shouldBeActive)
+
+        } catch (e: Exception) {
+            Log.e("ScheduleManager", "Error al programar alarmas exactas: ${e.message}")
+
+            // Intentar con método menos exacto como respaldo
             try {
                 alarmManager.set(
                     AlarmManager.RTC_WAKEUP,
@@ -299,9 +260,6 @@ class ScheduleManager(private val context: Context) {
                 Log.e("ScheduleManager", "Error fatal al programar alarmas: ${e2.message}")
             }
         }
-
-        // Verificar el estado actual inmediatamente
-        checkCurrentStatus()
     }
 
     // Cancelar alarmas programadas
@@ -330,16 +288,33 @@ class ScheduleManager(private val context: Context) {
         Log.d("ScheduleManager", "Alarmas canceladas")
     }
 
-    // Verificar el estado actual y aplicarlo
-    private fun checkCurrentStatus() {
-        val shouldBeActive = shouldServiceBeActive()
-        Log.d("ScheduleManager", "Verificación de estado: debería estar activo = $shouldBeActive")
-        NotificationService.isServiceActive = shouldBeActive
+    // Actualizar estado del servicio
+    private fun updateServiceState(activate: Boolean) {
+        NotificationService.isServiceActive = activate
 
-        // Enviar broadcast para notificar a la UI usando Intent explícito
+        // Iniciar/detener el servicio explícitamente
+        val serviceIntent = Intent(context, NotificationService::class.java).apply {
+            action = if (activate) {
+                NotificationService.ACTION_START_SERVICE
+            } else {
+                NotificationService.ACTION_STOP_SERVICE
+            }
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            Log.e("ScheduleManager", "Error al cambiar estado del servicio: ${e.message}")
+        }
+
+        // Notificar a la UI
         val updateIntent = Intent(MainActivity.updateStatusAction).apply {
-            setPackage(context.packageName) // Hace que sea explícito
-            putExtra("service_state", shouldBeActive)
+            setPackage(context.packageName)
+            putExtra("service_state", activate)
             putExtra("schedule_activated", true)
         }
         context.sendBroadcast(updateIntent)
@@ -349,10 +324,10 @@ class ScheduleManager(private val context: Context) {
     fun shouldServiceBeActive(): Boolean {
         if (!isScheduleEnabled()) return true
 
-        val startHour = sharedPrefs.getInt(KEY_START_HOUR, 8)
-        val startMinute = sharedPrefs.getInt(KEY_START_MINUTE, 0)
-        val endHour = sharedPrefs.getInt(KEY_END_HOUR, 18)
-        val endMinute = sharedPrefs.getInt(KEY_END_MINUTE, 0)
+        val startHour = getStartHour()
+        val startMinute = getStartMinute()
+        val endHour = getEndHour()
+        val endMinute = getEndMinute()
 
         val currentTime = Calendar.getInstance()
         val currentHour = currentTime.get(Calendar.HOUR_OF_DAY)
@@ -364,27 +339,17 @@ class ScheduleManager(private val context: Context) {
 
         // Verificar si el día actual está habilitado
         val currentDay = currentTime.get(Calendar.DAY_OF_WEEK)
-        val isDayEnabled = when (currentDay) {
-            Calendar.MONDAY -> sharedPrefs.getBoolean(KEY_MONDAY, true)
-            Calendar.TUESDAY -> sharedPrefs.getBoolean(KEY_TUESDAY, true)
-            Calendar.WEDNESDAY -> sharedPrefs.getBoolean(KEY_WEDNESDAY, true)
-            Calendar.THURSDAY -> sharedPrefs.getBoolean(KEY_THURSDAY, true)
-            Calendar.FRIDAY -> sharedPrefs.getBoolean(KEY_FRIDAY, true)
-            Calendar.SATURDAY -> sharedPrefs.getBoolean(KEY_SATURDAY, false)
-            Calendar.SUNDAY -> sharedPrefs.getBoolean(KEY_SUNDAY, false)
-            else -> false
+        if (!isDayEnabled(currentDay)) {
+            return false
         }
 
-        return if (isDayEnabled) {
-            if (startTimeValue <= endTimeValue) {
-                // Caso normal: inicio < fin (mismo día)
-                currentTimeValue in startTimeValue..endTimeValue
-            } else {
-                // Caso especial: fin < inicio (por ejemplo, 22:00 a 06:00)
-                currentTimeValue >= startTimeValue || currentTimeValue <= endTimeValue
-            }
+        // Determinar si estamos en el período activo
+        return if (startTimeValue <= endTimeValue) {
+            // Caso normal: inicio < fin (mismo día)
+            currentTimeValue in startTimeValue..endTimeValue
         } else {
-            false // Si el día está deshabilitado, el servicio no debería estar activo
+            // Caso especial: fin < inicio (por ejemplo, 22:00 a 06:00)
+            currentTimeValue >= startTimeValue || currentTimeValue <= endTimeValue
         }
     }
 

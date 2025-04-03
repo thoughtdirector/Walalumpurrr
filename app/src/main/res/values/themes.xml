@@ -1,5 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Tema base para modo claro -->
+    <style name="Theme.NotificacionesApp" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Color primario -->
+        <item name="colorPrimary">#2D3142</item>
+        <item name="colorPrimaryVariant">#1A2238</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
 
-    <style name="Theme.NotificacionesApp" parent="android:Theme.Material.Light.NoActionBar" />
+        <!-- Color secundario -->
+        <item name="colorSecondary">#4F5D75</item>
+        <item name="colorSecondaryVariant">#394360</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+
+        <!-- Color terciario -->
+        <item name="colorTertiary">#4F5D75</item>
+        <item name="colorOnTertiary">#FFFFFF</item>
+
+        <!-- Contenedores -->
+        <item name="colorPrimaryContainer">#1A2238</item>
+        <item name="colorOnPrimaryContainer">#E8E9EB</item>
+        <item name="colorSecondaryContainer">#394360</item>
+        <item name="colorOnSecondaryContainer">#E8E9EB</item>
+
+        <!-- Barras de estado -->
+        <item name="android:statusBarColor">?attr/colorPrimaryVariant</item>
+        <item name="android:navigationBarColor">?attr/colorPrimaryVariant</item>
+
+        <!-- Transiciones -->
+        <item name="android:windowActivityTransitions">true</item>
+    </style>
+
+    <!-- Tema transparente para actividad de transición -->
+    <style name="Theme.TransparentActivity" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:backgroundDimEnabled">false</item>
+    </style>
 </resources>

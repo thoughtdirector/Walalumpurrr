@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
@@ -14,6 +15,7 @@ import android.util.Log
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
@@ -28,9 +30,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     private lateinit var serviceButton: MaterialButton
     private lateinit var powerSwitch: SwitchMaterial
     private lateinit var scheduleButton: MaterialButton
+    private lateinit var appSettingsButton: MaterialButton
     private lateinit var tts: TextToSpeech
     private lateinit var scheduleManager: ScheduleManager
-    private lateinit var descriptionText: TextView // Reutilizar este TextView existente
+    private lateinit var descriptionText: TextView
 
     private val permissionRequestCode = 123
 
@@ -60,15 +63,35 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private val themeChangeReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == "com.example.notificacionesapp.THEME_CHANGED") {
+                val isDarkMode = intent.getBooleanExtra("dark_mode", false)
+                // Aplicar el tema sin reiniciar la actividad
+                AppCompatDelegate.setDefaultNightMode(
+                    if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
+                    else AppCompatDelegate.MODE_NIGHT_NO
+                )
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Aplicar tema antes de setContentView
+        applyTheme()
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        // Inicializar vistas
         statusText = findViewById(R.id.statusText)
         serviceButton = findViewById(R.id.serviceButton)
         powerSwitch = findViewById(R.id.powerSwitch)
         scheduleButton = findViewById(R.id.scheduleButton)
         descriptionText = findViewById(R.id.descriptionText)
+
+        // Botón para configuración de apps
+        appSettingsButton = findViewById(R.id.appSettingsButton)
 
         // Inicializar ScheduleManager
         scheduleManager = ScheduleManager(this)
@@ -86,14 +109,39 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                     promptNotificationAccess()
                     powerSwitch.isChecked = false
                 } else {
-                    NotificationService.isServiceActive = true
-                    updateStatusText()
-                    tts.speak("Servicio de lectura activado", TextToSpeech.QUEUE_FLUSH, null, "switch_on")
+                    // Iniciar servicio explícitamente
+                    val intent = Intent(this, NotificationService::class.java)
+                    intent.action = NotificationService.ACTION_START_SERVICE
+
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            startForegroundService(intent)
+                        } else {
+                            startService(intent)
+                        }
+
+                        NotificationService.isServiceActive = true
+                        updateStatusText()
+                        tts.speak("Servicio de lectura activado", TextToSpeech.QUEUE_FLUSH, null, "switch_on")
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Error al iniciar servicio: ${e.message}")
+                        Toast.makeText(this, "Error al iniciar servicio", Toast.LENGTH_SHORT).show()
+                    }
                 }
             } else {
-                NotificationService.isServiceActive = false
-                updateStatusText()
-                tts.speak("Servicio de lectura desactivado", TextToSpeech.QUEUE_FLUSH, null, "switch_off")
+                // Detener servicio explícitamente
+                val intent = Intent(this, NotificationService::class.java)
+                intent.action = NotificationService.ACTION_STOP_SERVICE
+
+                try {
+                    startService(intent)
+
+                    NotificationService.isServiceActive = false
+                    updateStatusText()
+                    tts.speak("Servicio de lectura desactivado", TextToSpeech.QUEUE_FLUSH, null, "switch_off")
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Error al detener servicio: ${e.message}")
+                }
             }
         }
 
@@ -121,8 +169,33 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
         }
 
+        // Botón para configuración de apps
+        appSettingsButton.setOnClickListener {
+            try {
+                val intent = Intent(this, AppSettingsActivity::class.java)
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Error al abrir configuración de apps: ${e.message}", Toast.LENGTH_LONG).show()
+                e.printStackTrace()
+            }
+        }
+
         updateStatus()
         updateNextScheduleInfo()
+    }
+
+    private fun applyTheme() {
+        try {
+            val themePrefs = getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
+            val isDarkMode = themePrefs.getBoolean("dark_mode", false)
+
+            AppCompatDelegate.setDefaultNightMode(
+                if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
+                else AppCompatDelegate.MODE_NIGHT_NO
+            )
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error al aplicar tema: ${e.message}")
+        }
     }
 
     private fun updateNextScheduleInfo() {
@@ -168,8 +241,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun updateSwitchWithoutTrigger(checked: Boolean) {
-        var ignoreNextChange = true
-
         val currentState = powerSwitch.isChecked
 
         if (currentState != checked) {
@@ -179,33 +250,39 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun checkAndRequestPermissions() {
-        val audioPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-        val modifyAudioPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS)
-        val notificationPermission = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-        } else {
-            PackageManager.PERMISSION_GRANTED
+        val permissions = mutableListOf<String>()
+
+        // Permisos necesarios para Android 12+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.SCHEDULE_EXACT_ALARM)
+                != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.SCHEDULE_EXACT_ALARM)
+            }
         }
 
-        val permissionsNeeded = ArrayList<String>()
-
-        if (audioPermission != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.RECORD_AUDIO)
+        // Permisos necesarios para Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
 
-        if (modifyAudioPermission != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)
+        // Verificar otros permisos necesarios
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.RECORD_AUDIO)
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
-            notificationPermission != PackageManager.PERMISSION_GRANTED) {
-            permissionsNeeded.add(Manifest.permission.POST_NOTIFICATIONS)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.MODIFY_AUDIO_SETTINGS)
+            != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.MODIFY_AUDIO_SETTINGS)
         }
 
-        if (permissionsNeeded.isNotEmpty()) {
+        if (permissions.isNotEmpty()) {
             ActivityCompat.requestPermissions(
                 this,
-                permissionsNeeded.toTypedArray(),
+                permissions.toTypedArray(),
                 permissionRequestCode
             )
         }
@@ -242,7 +319,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             } else {
                 Toast.makeText(
                     this,
-                    "Se necesitan permisos de audio para el funcionamiento correcto",
+                    "Se necesitan permisos para el funcionamiento correcto",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -314,13 +391,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     override fun onResume() {
         super.onResume()
         try {
-            val filter = IntentFilter(updateStatusAction)
+            val filterStatus = IntentFilter(updateStatusAction)
+            registerReceiver(statusReceiver, filterStatus)
 
-            // Usar un enfoque alternativo: Intent explícito (específico de la aplicación)
-            // Esto evita la necesidad de flags de exportación
-            registerReceiver(statusReceiver, filter)
+            val filterTheme = IntentFilter("com.example.notificacionesapp.THEME_CHANGED")
+            registerReceiver(themeChangeReceiver, filterTheme)
         } catch (e: Exception) {
-            Log.e("MainActivity", "Error al registrar receiver: ${e.message}")
+            Log.e("MainActivity", "Error al registrar receivers: ${e.message}")
         }
         updateStatus()
         updateNextScheduleInfo()
@@ -330,8 +407,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onPause()
         try {
             unregisterReceiver(statusReceiver)
+            unregisterReceiver(themeChangeReceiver)
         } catch (e: Exception) {
-            // Ignorar si el receptor no está registrado
+            // Ignorar si los receptores no están registrados
         }
     }
 

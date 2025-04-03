@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#2D3142"
+    android:background="?attr/colorPrimary"
     tools:context=".MainActivity">
 
     <TextView
@@ -14,7 +14,7 @@
         android:layout_marginTop="32dp"
         android:fontFamily="sans-serif-medium"
         android:text="Asistente de Voz"
-        android:textColor="#FFFFFF"
+        android:textColor="?attr/colorOnPrimary"
         android:textSize="24sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
@@ -30,7 +30,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/titleText"
-        app:tint="#FFFFFF" />
+        app:tint="?attr/colorOnPrimary" />
 
     <androidx.cardview.widget.CardView
         android:id="@+id/statusCard"
@@ -39,7 +39,7 @@
         android:layout_marginStart="20dp"
         android:layout_marginTop="24dp"
         android:layout_marginEnd="20dp"
-        app:cardBackgroundColor="#1A2238"
+        app:cardBackgroundColor="?attr/colorPrimaryVariant"
         app:cardCornerRadius="12dp"
         app:cardElevation="4dp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -58,7 +58,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:text="Estado del Servicio"
                 android:textAlignment="center"
-                android:textColor="#E8E9EB"
+                android:textColor="?attr/colorOnPrimaryContainer"
                 android:textSize="18sp" />
 
             <TextView
@@ -90,7 +90,7 @@
         android:layout_marginStart="20dp"
         android:layout_marginTop="20dp"
         android:layout_marginEnd="20dp"
-        app:cardBackgroundColor="#394360"
+        app:cardBackgroundColor="?attr/colorSecondaryContainer"
         app:cardCornerRadius="12dp"
         app:cardElevation="4dp"
         app:layout_constraintEnd_toEndOf="parent"
@@ -109,7 +109,7 @@
                 android:fontFamily="sans-serif-medium"
                 android:text="Información"
                 android:textAlignment="center"
-                android:textColor="#E8E9EB"
+                android:textColor="?attr/colorOnSecondaryContainer"
                 android:textSize="18sp" />
 
             <TextView
@@ -120,7 +120,7 @@
                 android:fontFamily="sans-serif"
                 android:text="Esta aplicación lee en voz alta las notificaciones de apps como Nequi y WhatsApp cuando las recibes."
                 android:textAlignment="center"
-                android:textColor="#E8E9EB"
+                android:textColor="?attr/colorOnSecondaryContainer"
                 android:textSize="14sp" />
         </LinearLayout>
     </androidx.cardview.widget.CardView>
@@ -132,7 +132,7 @@
         android:layout_marginStart="20dp"
         android:layout_marginTop="20dp"
         android:layout_marginEnd="20dp"
-        android:backgroundTint="#4F5D75"
+        android:backgroundTint="?attr/colorTertiary"
         android:fontFamily="sans-serif-medium"
         android:text="Configurar horario"
         android:textSize="14sp"
@@ -142,6 +142,24 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/infoCard" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/appSettingsButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="20dp"
+        android:backgroundTint="?attr/colorTertiary"
+        android:fontFamily="sans-serif-medium"
+        android:text="Configurar aplicaciones"
+        android:textSize="14sp"
+        app:cornerRadius="20dp"
+        app:icon="@android:drawable/ic_menu_manage"
+        app:iconGravity="textStart"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/scheduleButton" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/serviceButton"
