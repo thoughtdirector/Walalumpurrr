@@ -218,7 +218,7 @@ class NotificationService : NotificationListenerService() {
                 packageName.contains("nequi") || packageName.contains("colombia.nequi") -> {
                     processNequiNotification("$title $text")
                 }
-                packageName.contains("daviplataapp") || packageName.contains("davivienda.daviplataapp") -> {
+                packageName.contains("daviplata") || packageName.contains("daviplataapp")-> {
                     processDaviPlataNotification(title, text)
                 }
                 packageName.contains("bancolombia") || packageName.contains("bancolombia.mibancolombia") -> {
@@ -282,7 +282,7 @@ class NotificationService : NotificationListenerService() {
 
     private fun processDaviPlataNotification(title: String, text: String) {
         try {
-            if (text.contains("recibiste") || text.contains("transferencia")) {
+            if (text.contains("Recibió") || text.contains("movimientos")) {
                 val mensaje = "DaviPlata: $text"
 
                 if (mensaje != lastNotification) {
