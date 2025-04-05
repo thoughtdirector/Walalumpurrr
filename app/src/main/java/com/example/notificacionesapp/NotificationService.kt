@@ -218,10 +218,10 @@ class NotificationService : NotificationListenerService() {
                 packageName.contains("nequi") || packageName.contains("colombia.nequi") -> {
                     processNequiNotification("$title $text")
                 }
-                packageName.contains("daviplata") -> {
+                packageName.contains("daviplataapp") || packageName.contains("davivienda.daviplataapp") -> {
                     processDaviPlataNotification(title, text)
                 }
-                packageName.contains("bancolombia") -> {
+                packageName.contains("bancolombia") || packageName.contains("bancolombia.mibancolombia") -> {
                     processBancolombiaNotification(title, text)
                 }
                 packageName.contains("whatsapp") -> {
@@ -252,7 +252,7 @@ class NotificationService : NotificationListenerService() {
             if (matcher.find()) {
                 val nombre = matcher.group(1)
                 val monto = matcher.group(2)
-                val mensaje = "$nombre te envió $monto pesos"
+                val mensaje = "$nombre te envió $monto pesos por nequi"
 
                 if (mensaje != lastNotification) {
                     lastNotification = mensaje
@@ -261,13 +261,13 @@ class NotificationService : NotificationListenerService() {
                 return
             }
 
-            // Si no coincide con el patrón, intentar método alternativo
+            // Si no coincide con el patrón, intentar metodo alternativo
             if (content.contains("te envió")) {
                 val parts = content.split("te envió")
                 if (parts.size >= 2) {
                     val nombre = parts[0].trim()
                     val montoRaw = parts[1].replace("¡lo mejor!", "").trim()
-                    val mensaje = "$nombre te envió $montoRaw pesos"
+                    val mensaje = "$nombre te envió $montoRaw pesos por nequi"
 
                     if (mensaje != lastNotification) {
                         lastNotification = mensaje
