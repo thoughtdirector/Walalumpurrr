@@ -253,11 +253,7 @@ class NotificationService : NotificationListenerService() {
                 val nombre = matcher.group(1)
                 val monto = matcher.group(2)
                 val mensaje = "$nombre te envió $monto pesos por nequi"
-
-                if (mensaje != lastNotification) {
-                    lastNotification = mensaje
-                    speakOut(mensaje)
-                }
+                speakOut(mensaje)
                 return
             }
 
