@@ -1,6 +1,7 @@
 package com.example.notificacionesapp
 
 import android.Manifest
+import android.animation.AnimatorInflater
 import android.app.AlertDialog
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -12,6 +13,7 @@ import android.os.Bundle
 import android.provider.Settings
 import android.speech.tts.TextToSpeech
 import android.util.Log
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -19,6 +21,8 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.chip.Chip
+import com.google.android.material.chip.ChipGroup
 import com.google.android.material.switchmaterial.SwitchMaterial
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -27,13 +31,18 @@ import java.util.Locale
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private lateinit var statusText: TextView
+    private lateinit var activeTimeText: TextView
+    private lateinit var nextUpdateText: TextView
+    private lateinit var nextScheduleInfoText: TextView
     private lateinit var serviceButton: MaterialButton
     private lateinit var powerSwitch: SwitchMaterial
     private lateinit var scheduleButton: MaterialButton
     private lateinit var appSettingsButton: MaterialButton
+    private lateinit var daysChipGroup: ChipGroup
+    private lateinit var statusIcon: ImageView
+    private lateinit var appIcon: ImageView
     private lateinit var tts: TextToSpeech
     private lateinit var scheduleManager: ScheduleManager
-    private lateinit var descriptionText: TextView
 
     private val permissionRequestCode = 123
 
@@ -50,9 +59,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 if (scheduleActivated) {
                     // Mostrar un Toast informativo sobre la activación/desactivación por horario
                     val message = if (serviceState) {
-                        "Servicio activado por horario programado"
+                        getString(R.string.service_activated_by_schedule)
                     } else {
-                        "Servicio desactivado por horario programado"
+                        getString(R.string.service_deactivated_by_schedule)
                     }
                     Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                 }
@@ -84,25 +93,71 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         setContentView(R.layout.activity_main)
 
         // Inicializar vistas
-        statusText = findViewById(R.id.statusText)
-        serviceButton = findViewById(R.id.serviceButton)
-        powerSwitch = findViewById(R.id.powerSwitch)
-        scheduleButton = findViewById(R.id.scheduleButton)
-        descriptionText = findViewById(R.id.descriptionText)
+        initViews()
 
-        // Botón para configuración de apps
-        appSettingsButton = findViewById(R.id.appSettingsButton)
+        // Aplicar animación al ícono
+        applyIconAnimation()
 
         // Inicializar ScheduleManager
         scheduleManager = ScheduleManager(this)
 
-        // Initialize Text-to-Speech
+        // Inicializar Text-to-Speech
         tts = TextToSpeech(this, this)
 
-        // Check permissions
+        // Verificar permisos
         checkAndRequestPermissions()
 
-        // Configure power switch
+        // Configurar el switch de encendido
+        setupPowerSwitch()
+
+        // Configurar botones
+        setupButtons()
+
+        // Actualizar información en la UI
+        updateStatus()
+        updateNextScheduleInfo()
+        updateDaysChips()
+    }
+
+    private fun initViews() {
+        statusText = findViewById(R.id.statusText)
+        activeTimeText = findViewById(R.id.activeTimeText)
+        nextUpdateText = findViewById(R.id.nextUpdateText)
+        nextScheduleInfoText = findViewById(R.id.nextScheduleInfoText)
+        serviceButton = findViewById(R.id.serviceButton)
+        powerSwitch = findViewById(R.id.powerSwitch)
+        scheduleButton = findViewById(R.id.scheduleButton)
+        appSettingsButton = findViewById(R.id.appSettingsButton)
+        daysChipGroup = findViewById(R.id.daysChipGroup)
+        statusIcon = findViewById(R.id.statusIcon)
+        appIcon = findViewById(R.id.appIcon)
+    }
+
+    private fun applyIconAnimation() {
+        try {
+            val pulseAnimator = AnimatorInflater.loadAnimator(this, R.animator.pulse_animation)
+            pulseAnimator.setTarget(appIcon)
+            pulseAnimator.start()
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error al aplicar animación: ${e.message}")
+        }
+    }
+
+    private fun applyTheme() {
+        try {
+            val themePrefs = getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
+            val isDarkMode = themePrefs.getBoolean("dark_mode", false)
+
+            AppCompatDelegate.setDefaultNightMode(
+                if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
+                else AppCompatDelegate.MODE_NIGHT_NO
+            )
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error al aplicar tema: ${e.message}")
+        }
+    }
+
+    private fun setupPowerSwitch() {
         powerSwitch.setOnCheckedChangeListener { _, isChecked ->
             if (isChecked) {
                 if (!isNotificationServiceEnabled()) {
@@ -122,7 +177,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                         NotificationService.isServiceActive = true
                         updateStatusText()
-                        tts.speak("Servicio de lectura activado", TextToSpeech.QUEUE_FLUSH, null, "switch_on")
+                        tts.speak(getString(R.string.service_activated), TextToSpeech.QUEUE_FLUSH, null, "switch_on")
                     } catch (e: Exception) {
                         Log.e("MainActivity", "Error al iniciar servicio: ${e.message}")
                         Toast.makeText(this, "Error al iniciar servicio", Toast.LENGTH_SHORT).show()
@@ -138,23 +193,24 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                     NotificationService.isServiceActive = false
                     updateStatusText()
-                    tts.speak("Servicio de lectura desactivado", TextToSpeech.QUEUE_FLUSH, null, "switch_off")
+                    tts.speak(getString(R.string.service_deactivated), TextToSpeech.QUEUE_FLUSH, null, "switch_off")
                 } catch (e: Exception) {
                     Log.e("MainActivity", "Error al detener servicio: ${e.message}")
                 }
             }
         }
-
-        // Button to test service
+    }
+    private fun setupButtons() {
+        // Botón para probar servicio
         serviceButton.setOnClickListener {
             if (!isNotificationServiceEnabled()) {
                 promptNotificationAccess()
             } else if (powerSwitch.isChecked) {
-                Toast.makeText(this, "Probando servicio de voz...", Toast.LENGTH_SHORT).show()
-                tts.speak("El servicio está funcionando correctamente y leerá tus notificaciones",
+                Toast.makeText(this, getString(R.string.testing_voice_service), Toast.LENGTH_SHORT).show()
+                tts.speak(getString(R.string.service_working_correctly),
                     TextToSpeech.QUEUE_FLUSH, null, "test_id")
             } else {
-                Toast.makeText(this, "Activa el servicio primero", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.activate_service_first), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -164,7 +220,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 val intent = Intent(this, ScheduleActivity::class.java)
                 startActivity(intent)
             } catch (e: Exception) {
-                Toast.makeText(this, "Error al abrir configuración: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.error_opening_config, e.message), Toast.LENGTH_LONG).show()
                 e.printStackTrace()
             }
         }
@@ -179,74 +235,37 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 e.printStackTrace()
             }
         }
-
-        updateStatus()
-        updateNextScheduleInfo()
     }
 
-    private fun applyTheme() {
-        try {
-            val themePrefs = getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
-            val isDarkMode = themePrefs.getBoolean("dark_mode", false)
+    private fun updateDaysChips() {
+        // No permitimos la interacción directa con los chips en MainActivity
+        // Solo los mostramos con el estado activo/inactivo según la configuración
 
-            AppCompatDelegate.setDefaultNightMode(
-                if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
-                else AppCompatDelegate.MODE_NIGHT_NO
-            )
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error al aplicar tema: ${e.message}")
-        }
-    }
+        val chipLun = findViewById<Chip>(R.id.chipLun)
+        val chipMar = findViewById<Chip>(R.id.chipMar)
+        val chipMie = findViewById<Chip>(R.id.chipMie)
+        val chipJue = findViewById<Chip>(R.id.chipJue)
+        val chipVie = findViewById<Chip>(R.id.chipVie)
+        val chipSab = findViewById<Chip>(R.id.chipSab)
+        val chipDom = findViewById<Chip>(R.id.chipDom)
 
-    private fun updateNextScheduleInfo() {
-        if (scheduleManager.isScheduleEnabled()) {
-            val startTime = formatTime(scheduleManager.getStartHour(), scheduleManager.getStartMinute())
-            val endTime = formatTime(scheduleManager.getEndHour(), scheduleManager.getEndMinute())
+        // Actualizar el estado de los chips según la configuración actual
+        chipLun.isChecked = scheduleManager.isDayEnabled(Calendar.MONDAY)
+        chipMar.isChecked = scheduleManager.isDayEnabled(Calendar.TUESDAY)
+        chipMie.isChecked = scheduleManager.isDayEnabled(Calendar.WEDNESDAY)
+        chipJue.isChecked = scheduleManager.isDayEnabled(Calendar.THURSDAY)
+        chipVie.isChecked = scheduleManager.isDayEnabled(Calendar.FRIDAY)
+        chipSab.isChecked = scheduleManager.isDayEnabled(Calendar.SATURDAY)
+        chipDom.isChecked = scheduleManager.isDayEnabled(Calendar.SUNDAY)
 
-            val nextEvent = scheduleManager.getNextScheduledEvent()
-            val nextEventTime = if (nextEvent != null) {
-                val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
-                dateFormat.format(nextEvent.time)
-            } else {
-                "No programado"
-            }
-
-            val daysString = buildEnabledDaysString()
-
-            descriptionText.text = String.format(
-                Locale.getDefault(),
-                "Horario activo: %s a %s\nDías: %s\nPróxima actualización: %s",
-                startTime, endTime, daysString, nextEventTime
-            )
-        } else {
-            descriptionText.text = "Esta aplicación lee en voz alta las notificaciones de apps como Nequi y WhatsApp cuando las recibes."
-        }
-    }
-
-    private fun buildEnabledDaysString(): String {
-        val days = mutableListOf<String>()
-        val dayNames = arrayOf("", "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
-
-        for (i in Calendar.SUNDAY..Calendar.SATURDAY) {
-            if (scheduleManager.isDayEnabled(i)) {
-                days.add(dayNames[i])
-            }
-        }
-
-        return days.joinToString(", ")
-    }
-
-    private fun formatTime(hour: Int, minute: Int): String {
-        return String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
-    }
-
-    private fun updateSwitchWithoutTrigger(checked: Boolean) {
-        val currentState = powerSwitch.isChecked
-
-        if (currentState != checked) {
-            // Establecer el nuevo estado
-            powerSwitch.isChecked = checked
-        }
+        // Desactivar la interacción con los chips (solo informativos)
+        chipLun.isClickable = false
+        chipMar.isClickable = false
+        chipMie.isClickable = false
+        chipJue.isClickable = false
+        chipVie.isClickable = false
+        chipSab.isClickable = false
+        chipDom.isClickable = false
     }
 
     private fun checkAndRequestPermissions() {
@@ -311,7 +330,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
 
             if (allGranted) {
-                Toast.makeText(this, "Todos los permisos concedidos", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.all_permissions_granted), Toast.LENGTH_SHORT).show()
                 // Reiniciar TTS para asegurar que funciona con los nuevos permisos
                 tts.stop()
                 tts.shutdown()
@@ -319,7 +338,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             } else {
                 Toast.makeText(
                     this,
-                    "Se necesitan permisos para el funcionamiento correcto",
+                    getString(R.string.audio_permissions_needed),
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -327,27 +346,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     private fun updateStatusText() {
-        if (scheduleManager.isScheduleEnabled()) {
-            val activeNow = scheduleManager.shouldServiceBeActive()
-            if (activeNow && powerSwitch.isChecked) {
-                statusText.text = "✅ Servicio activo según horario"
-                statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
-            } else if (!activeNow) {
-                statusText.text = "⏰ Servicio en espera (fuera de horario)"
-                statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_orange_light))
+        try {
+            if (scheduleManager.isScheduleEnabled()) {
+                val activeNow = scheduleManager.shouldServiceBeActive()
+                if (activeNow && powerSwitch.isChecked) {
+                    statusText.text = getString(R.string.service_active_scheduled)
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.status_active))
+                    statusIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_active))
+                } else if (!activeNow) {
+                    statusText.text = getString(R.string.service_waiting)
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.status_waiting))
+                    statusIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_waiting))
+                } else {
+                    statusText.text = getString(R.string.service_inactive)
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.status_inactive))
+                    statusIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_inactive))
+                }
+                NotificationService.isServiceActive = activeNow && powerSwitch.isChecked
             } else {
-                statusText.text = "❌ Servicio inactivo: notificaciones silenciadas"
-                statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+                if (powerSwitch.isChecked) {
+                    statusText.text = getString(R.string.service_active_listening)
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.status_active))
+                    statusIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_active))
+                } else {
+                    statusText.text = getString(R.string.service_inactive)
+                    statusText.setTextColor(ContextCompat.getColor(this, R.color.status_inactive))
+                    statusIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_inactive))
+                }
             }
-            NotificationService.isServiceActive = activeNow && powerSwitch.isChecked
-        } else {
-            if (powerSwitch.isChecked) {
-                statusText.text = "✅ Servicio activo: escuchando notificaciones"
-                statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_green_light))
-            } else {
-                statusText.text = "❌ Servicio inactivo: notificaciones silenciadas"
-                statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
-            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error en updateStatusText: ${e.message}")
         }
     }
 
@@ -363,11 +391,73 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             // Verificar el estado según el horario programado
             updateStatusText()
         } else {
-            statusText.text = "❌ Servicio no disponible: concede permisos"
-            statusText.setTextColor(ContextCompat.getColor(this, android.R.color.holo_red_light))
+            statusText.text = getString(R.string.service_unavailable)
+            statusText.setTextColor(ContextCompat.getColor(this, R.color.status_inactive))
+            statusIcon.setColorFilter(ContextCompat.getColor(this, R.color.status_inactive))
             updateSwitchWithoutTrigger(false)
             powerSwitch.isEnabled = false
             NotificationService.isServiceActive = false
+        }
+    }
+
+    private fun updateNextScheduleInfo() {
+        if (scheduleManager.isScheduleEnabled()) {
+            val startTime = formatTime(scheduleManager.getStartHour(), scheduleManager.getStartMinute())
+            val endTime = formatTime(scheduleManager.getEndHour(), scheduleManager.getEndMinute())
+
+            activeTimeText.text = "$startTime a $endTime"
+
+            val nextEvent = scheduleManager.getNextScheduledEvent()
+            val nextEventTime = if (nextEvent != null) {
+                val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+                dateFormat.format(nextEvent.time)
+            } else {
+                getString(R.string.no_scheduled)
+            }
+
+            nextUpdateText.text = nextEventTime
+
+            // Actualizar el texto detallado
+            nextScheduleInfoText.text = "Próxima actualización: $nextEventTime"
+        } else {
+            activeTimeText.text = "No programado"
+            nextUpdateText.text = "No programado"
+            nextScheduleInfoText.text = ""
+        }
+
+        // Actualizar el estado de los chips de días
+        updateDaysChips()
+    }
+
+    private fun buildEnabledDaysString(): String {
+        val days = mutableListOf<String>()
+        val dayNames = arrayOf("", "Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb")
+
+        for (i in Calendar.SUNDAY..Calendar.SATURDAY) {
+            if (scheduleManager.isDayEnabled(i)) {
+                days.add(dayNames[i])
+            }
+        }
+
+        return days.joinToString(", ")
+    }
+
+    private fun formatTime(hour: Int, minute: Int): String {
+        return String.format(Locale.getDefault(), "%02d:%02d", hour, minute)
+    }
+
+    private fun updateSwitchWithoutTrigger(checked: Boolean) {
+        val currentState = powerSwitch.isChecked
+
+        if (currentState != checked) {
+            // Desactivar temporalmente el listener
+            powerSwitch.setOnCheckedChangeListener(null)
+
+            // Establecer el nuevo estado
+            powerSwitch.isChecked = checked
+
+            // Reactivar el listener original
+            setupPowerSwitch()
         }
     }
 
@@ -379,12 +469,12 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     private fun promptNotificationAccess() {
         AlertDialog.Builder(this)
-            .setTitle("Permiso necesario")
-            .setMessage("Esta app necesita acceso a tus notificaciones para funcionar. Por favor, activa el permiso para 'NotificacionesApp'.")
-            .setPositiveButton("Configurar") { _, _ ->
+            .setTitle(getString(R.string.permission_required))
+            .setMessage(getString(R.string.notification_access_message))
+            .setPositiveButton(getString(R.string.configure)) { _, _ ->
                 startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             }
-            .setNegativeButton("Cancelar", null)
+            .setNegativeButton(getString(R.string.cancel), null)
             .show()
     }
 
@@ -392,16 +482,28 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onResume()
         try {
             val filterStatus = IntentFilter(updateStatusAction)
-            registerReceiver(statusReceiver, filterStatus)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(statusReceiver, filterStatus, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(statusReceiver, filterStatus)
+            }
 
             val filterTheme = IntentFilter("com.example.notificacionesapp.THEME_CHANGED")
-            registerReceiver(themeChangeReceiver, filterTheme)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(themeChangeReceiver, filterTheme, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                registerReceiver(themeChangeReceiver, filterTheme)
+            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error al registrar receivers: ${e.message}")
         }
         updateStatus()
         updateNextScheduleInfo()
+        updateDaysChips()
     }
+
+
+
 
     override fun onPause() {
         super.onPause()
@@ -410,6 +512,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             unregisterReceiver(themeChangeReceiver)
         } catch (e: Exception) {
             // Ignorar si los receptores no están registrados
+            Log.e("MainActivity", "Error al desregistrar receivers: ${e.message}")
         }
     }
 
@@ -419,13 +522,13 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             val result = tts.setLanguage(Locale("es", "ES"))
 
             if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Toast.makeText(this, "El idioma español no está disponible", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.spanish_unavailable), Toast.LENGTH_SHORT).show()
             } else {
                 // Prueba del TTS cuando se inicializa correctamente
-                tts.speak("Sistema de lectura de notificaciones iniciado", TextToSpeech.QUEUE_FLUSH, null, "init_id")
+                tts.speak(getString(R.string.notification_reading_system_initialized), TextToSpeech.QUEUE_FLUSH, null, "init_id")
             }
         } else {
-            Toast.makeText(this, "Error al inicializar TTS", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.tts_initialization_error), Toast.LENGTH_SHORT).show()
         }
     }
 
