@@ -6,15 +6,16 @@
     android:layout_height="match_parent"
     android:background="@drawable/gradient_background_modern"
     android:fillViewport="true"
+    android:paddingBottom="16dp"
     tools:context=".MainActivity">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingHorizontal="16dp"
-        android:paddingBottom="24dp">
+        android:paddingBottom="80dp">
 
-        <TextView
+    <TextView
             android:id="@+id/titleText"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -361,6 +362,27 @@
             app:strokeWidth="1dp" />
 
         <com.google.android.material.button.MaterialButton
+            android:id="@+id/historyButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:backgroundTint="#1AFFFFFF"
+            android:fontFamily="sans-serif-medium"
+            android:paddingVertical="12dp"
+            android:text="VER HISTORIAL DE NOTIFICACIONES"
+            android:textSize="14sp"
+            app:cornerRadius="12dp"
+            app:icon="@android:drawable/ic_menu_recent_history"
+            app:iconGravity="textStart"
+            app:iconTint="@color/white"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/appSettingsButton"
+            app:strokeColor="#33FFFFFF"
+            app:strokeWidth="1dp" />
+
+        <!-- Botón de probar servicio (ya existente) -->
+        <com.google.android.material.button.MaterialButton
             android:id="@+id/serviceButton"
             android:layout_width="0dp"
             android:layout_height="60dp"
@@ -373,7 +395,7 @@
             app:icon="@drawable/ic_sound_wave"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/appSettingsButton" />
+            app:layout_constraintTop_toBottomOf="@+id/historyButton" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>

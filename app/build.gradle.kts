@@ -80,5 +80,6 @@ dependencies {
     implementation("com.google.android.material:material:1.10.0")  // Material Design components
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.cardview:cardview:1.0.0")  // CardView
+    implementation("com.google.code.gson:gson:2.10.1")
 }
 

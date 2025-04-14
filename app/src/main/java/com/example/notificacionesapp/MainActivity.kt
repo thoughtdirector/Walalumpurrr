@@ -177,7 +177,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
                         NotificationService.isServiceActive = true
                         updateStatusText()
-                        tts.speak(getString(R.string.service_activated), TextToSpeech.QUEUE_FLUSH, null, "switch_on")
                     } catch (e: Exception) {
                         Log.e("MainActivity", "Error al iniciar servicio: ${e.message}")
                         Toast.makeText(this, "Error al iniciar servicio", Toast.LENGTH_SHORT).show()
@@ -201,6 +200,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
     private fun setupButtons() {
+        findViewById<MaterialButton>(R.id.historyButton).setOnClickListener {
+            try {
+                val intent = Intent(this, HistoryActivity::class.java)
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Error al abrir historial: ${e.message}", Toast.LENGTH_LONG).show()
+                e.printStackTrace()
+            }
+        }
+
         // Botón para probar servicio
         serviceButton.setOnClickListener {
             if (!isNotificationServiceEnabled()) {

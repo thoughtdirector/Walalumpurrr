@@ -16,19 +16,21 @@ import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.notificacionesapp.notification.NotificationProcessorRegistry
+import com.example.notificacionesapp.util.NotificationHistoryManager
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
-import java.util.regex.Pattern
 
 class NotificationService : NotificationListenerService() {
 
     private var tts: TextToSpeech? = null
     private var lastNotification = ""
-    private val nequiPattern = Pattern.compile("([A-ZÁÉÍÓÚÑ\\s]+) te envió ([0-9,.]+), ¡lo mejor!")
     private val appSettings = ConcurrentHashMap<String, Boolean>()
     private val FOREGROUND_SERVICE_ID = 1001
     private val NOTIFICATION_CHANNEL_ID = "notification_service_channel"
     private var ttsInitialized = false
+    private lateinit var notificationHistoryManager: NotificationHistoryManager
+    private lateinit var processorRegistry: NotificationProcessorRegistry
 
     companion object {
         var isServiceActive = false
@@ -40,6 +42,10 @@ class NotificationService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         Log.d("NotificationService", "Servicio iniciando")
+
+        // Inicializar componentes
+        notificationHistoryManager = NotificationHistoryManager(this)
+        processorRegistry = NotificationProcessorRegistry(notificationHistoryManager)
 
         initializeTTS()
         loadAppSettings()
@@ -64,7 +70,6 @@ class NotificationService : NotificationListenerService() {
                         Log.d("NotificationService", "TTS inicializado correctamente")
                         ttsInitialized = true
 
-                        // Asegurar que esto ocurra en el hilo principal
                         Handler(Looper.getMainLooper()).postDelayed({
                             if (isServiceActive) {
                                 speakOut("Servicio de lectura de notificaciones activado")
@@ -199,7 +204,6 @@ class NotificationService : NotificationListenerService() {
 
             val packageName = sbn.packageName
 
-            // Verificar si esta app está habilitada
             if (!isAppEnabled(packageName)) {
                 Log.d("NotificationService", "App $packageName deshabilitada, ignorando notificación")
                 return
@@ -213,20 +217,10 @@ class NotificationService : NotificationListenerService() {
 
             Log.d("NotificationService", "Notificación recibida de $packageName: $title - $text")
 
-            // Procesar notificaciones según el paquete
-            when {
-                packageName.contains("nequi") || packageName.contains("colombia.nequi") -> {
-                    processNequiNotification("$title $text")
-                }
-                packageName.contains("daviplata") || packageName.contains("daviplataapp")-> {
-                    processDaviPlataNotification(title, text)
-                }
-                packageName.contains("bancolombia") || packageName.contains("bancolombia.mibancolombia") -> {
-                    processBancolombiaNotification(title, text)
-                }
-                packageName.contains("whatsapp") -> {
-                    processWhatsAppNotification(title, text)
-                }
+            val message = processorRegistry.processNotification(packageName, title, text)
+            if (message != null) {
+                lastNotification = message
+                speakOut(message)
             }
         } catch (e: Exception) {
             Log.e("NotificationService", "Error al procesar notificación", e)
@@ -243,86 +237,6 @@ class NotificationService : NotificationListenerService() {
 
         // Si no está en la lista de configuraciones, se permite por defecto
         return true
-    }
-
-    private fun processNequiNotification(content: String) {
-        try {
-            // Intentar con el patrón de Nequi
-            var matcher = nequiPattern.matcher(content)
-            if (matcher.find()) {
-                val nombre = matcher.group(1)
-                val monto = matcher.group(2)
-                val mensaje = "$nombre te envió $monto pesos por nequi"
-                speakOut(mensaje)
-                return
-            }
-
-            // Si no coincide con el patrón, intentar metodo alternativo
-            if (content.contains("te envió")) {
-                val parts = content.split("te envió")
-                if (parts.size >= 2) {
-                    val nombre = parts[0].trim()
-                    val montoRaw = parts[1].replace("¡lo mejor!", "").trim()
-                    val mensaje = "$nombre te envió $montoRaw pesos por nequi"
-
-                    if (mensaje != lastNotification) {
-                        lastNotification = mensaje
-                        speakOut(mensaje)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("NotificationService", "Error al procesar notificación de Nequi: ${e.message}")
-        }
-    }
-
-    private fun processDaviPlataNotification(title: String, text: String) {
-        try {
-            if (text.contains("Recibió") || text.contains("movimientos")) {
-                val mensaje = "DaviPlata: $text"
-
-                if (mensaje != lastNotification) {
-                    lastNotification = mensaje
-                    speakOut(mensaje)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("NotificationService", "Error al procesar notificación de DaviPlata: ${e.message}")
-        }
-    }
-
-    private fun processBancolombiaNotification(title: String, text: String) {
-        try {
-            if (text.contains("recibiste") || text.contains("transferencia") ||
-                text.contains("consignación") || title.contains("Transferencia")) {
-                val mensaje = "Bancolombia: $text"
-
-                if (mensaje != lastNotification) {
-                    lastNotification = mensaje
-                    speakOut(mensaje)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("NotificationService", "Error al procesar notificación de Bancolombia: ${e.message}")
-        }
-    }
-
-    private fun processWhatsAppNotification(title: String, text: String) {
-        try {
-            // No leer notificaciones de grupos, solo mensajes directos
-            if (!title.contains(":")) {  // Los mensajes de grupo suelen tener formato "Grupo: Remitente: Mensaje"
-                val mensaje = "$title dice: $text"
-
-                // Evitar repeticiones
-                if (mensaje != lastNotification) {
-                    lastNotification = mensaje
-                    Log.d("NotificationService", "Mensaje de WhatsApp: $mensaje")
-                    speakOut(mensaje)
-                }
-            }
-        } catch (e: Exception) {
-            Log.e("NotificationService", "Error al procesar notificación de WhatsApp: ${e.message}")
-        }
     }
 
     private fun speakOut(text: String) {

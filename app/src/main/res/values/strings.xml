@@ -28,4 +28,12 @@
     <string name="schedule_info_format">Horario activo: %1$s a %2$s\nDías: %3$s\nPróxima actualización: %4$s</string>
     <string name="no_scheduled">No programado</string>
     <string name="app_description">Esta aplicación lee en voz alta las notificaciones de apps como Nequi y WhatsApp cuando las recibes.</string>
+    <string-array name="notification_categories">
+        <item>Todas</item>
+        <item>Nequi</item>
+        <item>DaviPlata</item>
+        <item>Bancolombia</item>
+        <item>WhatsApp</item>
+    </string-array>
+
 </resources>
