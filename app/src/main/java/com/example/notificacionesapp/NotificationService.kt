@@ -17,6 +17,7 @@ import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.notificacionesapp.notification.NotificationProcessorRegistry
+import com.example.notificacionesapp.util.AmountSettings
 import com.example.notificacionesapp.util.NotificationHistoryManager
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -31,6 +32,7 @@ class NotificationService : NotificationListenerService() {
     private var ttsInitialized = false
     private lateinit var notificationHistoryManager: NotificationHistoryManager
     private lateinit var processorRegistry: NotificationProcessorRegistry
+    private lateinit var amountSettings: AmountSettings
 
     companion object {
         var isServiceActive = false
@@ -46,6 +48,7 @@ class NotificationService : NotificationListenerService() {
         // Inicializar componentes
         notificationHistoryManager = NotificationHistoryManager(this)
         processorRegistry = NotificationProcessorRegistry(notificationHistoryManager)
+        amountSettings = AmountSettings(this) // Añadir esta línea
 
         initializeTTS()
         loadAppSettings()
@@ -219,14 +222,24 @@ class NotificationService : NotificationListenerService() {
 
             val message = processorRegistry.processNotification(packageName, title, text)
             if (message != null) {
+                // Extraer el monto del mensaje procesado
+                val metadata = processorRegistry.getLastProcessedMetadata()
+                val amount = metadata["amount"]
+
+                // Guardar en el historial independientemente del monto
                 lastNotification = message
-                speakOut(message)
+
+                // Verificar si debe leerse según el límite de monto
+                if (amountSettings.shouldReadAmount(amount)) {
+                    speakOut(message)
+                } else {
+                    Log.d("NotificationService", "Notificación no leída por límite de monto: $amount")
+                }
             }
         } catch (e: Exception) {
             Log.e("NotificationService", "Error al procesar notificación", e)
         }
     }
-
     private fun isAppEnabled(packageName: String): Boolean {
         // Buscar coincidencias parciales en las claves de appSettings
         for ((app, enabled) in appSettings) {

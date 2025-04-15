@@ -46,6 +46,9 @@
         <activity
             android:name=".AppSettingsActivity"
             android:exported="false" />
+        <activity
+            android:name=".AmountSettingsActivity"
+            android:exported="false" />
 
         <activity
             android:name=".ThemeActivity"
