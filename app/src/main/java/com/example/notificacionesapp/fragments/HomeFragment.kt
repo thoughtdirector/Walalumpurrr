@@ -94,11 +94,16 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
     }
 
     fun updateUI() {
-        updateStatus()
-        updateScheduleInfo()
-        updateDaysChips()
+        if (isAdded) {
+            try {
+                updateStatus()
+                updateScheduleInfo()
+                updateDaysChips()
+            } catch (e: Exception) {
+                Log.e("HomeFragment", "Error en updateUI: ${e.message}")
+            }
+        }
     }
-
     fun updateServiceState(active: Boolean) {
         updateSwitchWithoutTrigger(active)
         updateStatusText()
@@ -163,24 +168,22 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
     }
 
     private fun updateStatus() {
-        val mainActivity = activity as MainActivity
-        val notificationServiceEnabled = mainActivity.isNotificationServiceEnabled()
+        if (!isAdded) return
 
-        if (notificationServiceEnabled) {
-            binding.powerSwitch.isEnabled = true
+        val mainActivity = (activity as? MainActivity) ?: return
 
-            // Restaurar el estado del switch si el servicio estaba activo
-            updateSwitchWithoutTrigger(NotificationService.isServiceActive)
+        try {
+            val notificationServiceEnabled = mainActivity.isNotificationServiceEnabled()
 
-            // Verificar el estado según el horario programado
-            updateStatusText()
-        } else {
-            binding.statusText.text = getString(R.string.service_unavailable)
-            binding.statusText.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_inactive))
-            binding.statusIcon.setColorFilter(ContextCompat.getColor(requireContext(), R.color.status_inactive))
-            updateSwitchWithoutTrigger(false)
-            binding.powerSwitch.isEnabled = false
-            NotificationService.isServiceActive = false
+            if (binding.powerSwitch != null) {
+                binding.powerSwitch.isEnabled = notificationServiceEnabled
+
+                updateSwitchWithoutTrigger(NotificationService.isServiceActive)
+
+                updateStatusText()
+            }
+        } catch (e: Exception) {
+            Log.e("HomeFragment", "Error en updateStatus: ${e.message}")
         }
     }
 
@@ -220,17 +223,20 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
     }
 
     private fun updateSwitchWithoutTrigger(checked: Boolean) {
+        if (binding.powerSwitch == null) return
+
         val currentState = binding.powerSwitch.isChecked
 
         if (currentState != checked) {
-            // Desactivar temporalmente el listener
-            binding.powerSwitch.setOnCheckedChangeListener(null)
+            try {
+                binding.powerSwitch.setOnCheckedChangeListener(null)
 
-            // Establecer el nuevo estado
-            binding.powerSwitch.isChecked = checked
+                binding.powerSwitch.isChecked = checked
 
-            // Reactivar el listener original
-            setupPowerSwitch()
+                setupPowerSwitch()
+            } catch (e: Exception) {
+                Log.e("HomeFragment", "Error en updateSwitchWithoutTrigger: ${e.message}")
+            }
         }
     }
 }
