@@ -25,11 +25,6 @@
         android:theme="@style/Theme.NotificacionesApp">
 
         <activity
-            android:name=".HistoryActivity"
-            android:exported="false"
-            android:theme="@style/Theme.NotificacionesApp" />
-
-        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask">
@@ -46,8 +41,13 @@
         <activity
             android:name=".AppSettingsActivity"
             android:exported="false" />
+
         <activity
             android:name=".AmountSettingsActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".HistoryActivity"
             android:exported="false" />
 
         <activity
