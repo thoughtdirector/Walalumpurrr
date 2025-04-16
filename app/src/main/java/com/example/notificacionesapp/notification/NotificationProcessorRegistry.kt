@@ -7,6 +7,7 @@ import com.example.notificacionesapp.util.NotificationHistoryManager
 
 class NotificationProcessorRegistry(private val historyManager: NotificationHistoryManager?) {
     private val processors = mutableListOf<NotificationProcessor>()
+    private var lastMetadata: Map<String, String> = emptyMap()
 
     init {
         registerDefaultProcessors()
@@ -32,18 +33,19 @@ class NotificationProcessorRegistry(private val historyManager: NotificationHist
                     val message = processor.processNotification(title, text, packageName)
 
                     if (message != null) {
-                        historyManager?.let {
-                            val metadata = processor.getMetadata(title, text, message)
+                        // Guardar los metadatos para acceso posterior
+                        lastMetadata = processor.getMetadata(title, text, message)
 
-                            if (metadata.isNotEmpty()) {
+                        historyManager?.let {
+                            if (lastMetadata.isNotEmpty()) {
                                 it.saveNotification(
                                     packageName = packageName,
-                                    appName = metadata["appName"] ?: "Desconocido",
-                                    title = metadata["title"] ?: title,
+                                    appName = lastMetadata["appName"] ?: "Desconocido",
+                                    title = lastMetadata["title"] ?: title,
                                     content = message,
-                                    type = metadata["type"] ?: "OTRO",
-                                    amount = metadata["amount"] ?: "",
-                                    sender = metadata["sender"] ?: ""
+                                    type = lastMetadata["type"] ?: "OTRO",
+                                    amount = lastMetadata["amount"] ?: "",
+                                    sender = lastMetadata["sender"] ?: ""
                                 )
                             }
                         }
@@ -52,10 +54,16 @@ class NotificationProcessorRegistry(private val historyManager: NotificationHist
                     }
                 } catch (e: Exception) {
                     Log.e("NotificationProcessor", "Error procesando notificación: ${e.message}")
+                    lastMetadata = emptyMap()
                 }
             }
         }
 
         return null
     }
+
+    fun getLastProcessedMetadata(): Map<String, String> {
+        return lastMetadata
+    }
+
 }

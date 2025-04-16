@@ -244,6 +244,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 e.printStackTrace()
             }
         }
+        findViewById<MaterialButton>(R.id.amountSettingsButton).setOnClickListener {
+            try {
+                val intent = Intent(this, AmountSettingsActivity::class.java)
+                startActivity(intent)
+            } catch (e: Exception) {
+                Toast.makeText(this, "Error al abrir configuración de montos: ${e.message}", Toast.LENGTH_LONG).show()
+                e.printStackTrace()
+            }
+        }
     }
 
     private fun updateDaysChips() {

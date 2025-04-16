@@ -35,5 +35,9 @@
         <item>Bancolombia</item>
         <item>WhatsApp</item>
     </string-array>
+    <string name="amount_limit_title">Configurar Límite de Monto</string>
+    <string name="amount_limit_description">Solo leer notificaciones con montos menores al límite</string>
+    <string name="amount_limit_enabled">Límite de monto activado: %d pesos</string>
+    <string name="amount_limit_disabled">Límite de monto desactivado</string>
 
 </resources>
