@@ -7,4 +7,5 @@ data class NotificationItem(
     val timestamp: Long,
     val sender: String? = null,
     val amount: String? = null
+
 )

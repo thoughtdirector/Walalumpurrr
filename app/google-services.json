@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "218134152276",
+    "project_id": "notiapp-407d5",
+    "storage_bucket": "notiapp-407d5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:218134152276:android:aa60c9f5e6dd2227fb99c1",
+        "android_client_info": {
+          "package_name": "com.example.notificacionesapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBdGdL0ZoUMTb05Ha2F0Q98iYOJvNfMcyM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

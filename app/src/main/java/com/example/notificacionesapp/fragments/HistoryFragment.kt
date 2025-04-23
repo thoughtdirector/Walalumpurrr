@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notificacionesapp.adapter.NotificationAdapter
 import com.example.notificacionesapp.databinding.FragmentHistoryBinding
@@ -41,8 +42,7 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
 
         // Configurar botón de limpieza
         binding.clearHistoryButton.setOnClickListener {
-            notificationHistoryManager.clearHistory()
-            updateNotificationsList()
+            showClearConfirmationDialog()
         }
 
         // Cargar el historial
@@ -64,40 +64,82 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
     private fun updateNotificationsList() {
         val selectedCategory = binding.categorySpinner.selectedItem.toString()
 
-        val notifications = when (selectedCategory) {
-            "Todas" -> notificationHistoryManager.getNotifications()
-            "Nequi" -> notificationHistoryManager.getNotificationsByType("NEQUI")
-            "DaviPlata" -> notificationHistoryManager.getNotificationsByType("DAVIPLATA")
-            "Bancolombia" -> notificationHistoryManager.getNotificationsByType("BANCOLOMBIA")
-            "WhatsApp" -> notificationHistoryManager.getNotificationsByType("WHATSAPP")
-            else -> notificationHistoryManager.getNotifications()
-        }
+        // Mostrar progreso
+        binding.emptyHistoryText.visibility = View.GONE
+        binding.historyRecyclerView.visibility = View.GONE
+        binding.progressBar.visibility = View.VISIBLE
 
-        if (notifications.isEmpty()) {
-            binding.emptyHistoryText.visibility = View.VISIBLE
-            binding.historyRecyclerView.visibility = View.GONE
+        if (selectedCategory == "Todas") {
+            notificationHistoryManager.getNotifications { notifications ->
+                handleNotificationsResult(notifications)
+            }
         } else {
-            binding.emptyHistoryText.visibility = View.GONE
-            binding.historyRecyclerView.visibility = View.VISIBLE
-
-            // Convertir Map<String, String> a NotificationItem
-            val notificationItems = notifications.map { notification ->
-                NotificationItem(
-                    appName = notification["appName"] ?: "Desconocido",
-                    title = notification["title"] ?: "",
-                    content = notification["content"] ?: "",
-                    timestamp = try {
-                        dateFormat.parse(notification["timestamp"] ?: "")?.time ?: System.currentTimeMillis()
-                    } catch (e: Exception) {
-                        System.currentTimeMillis()
-                    },
-                    sender = notification["sender"],
-                    amount = notification["amount"]
-                )
+            val type = when (selectedCategory) {
+                "Nequi" -> "NEQUI"
+                "DaviPlata" -> "DAVIPLATA"
+                "Bancolombia" -> "BANCOLOMBIA"
+                "WhatsApp" -> "WHATSAPP"
+                else -> "OTRO"
             }
 
-            // Actualizar el adaptador
-            adapter.updateData(notificationItems)
+            notificationHistoryManager.getNotificationsByType(type) { notifications ->
+                handleNotificationsResult(notifications)
+            }
+        }
+    }
+
+    private fun handleNotificationsResult(notifications: List<Map<String, String>>) {
+        requireActivity().runOnUiThread {
+            binding.progressBar.visibility = View.GONE
+
+            if (notifications.isEmpty()) {
+                binding.emptyHistoryText.visibility = View.VISIBLE
+                binding.historyRecyclerView.visibility = View.GONE
+            } else {
+                binding.emptyHistoryText.visibility = View.GONE
+                binding.historyRecyclerView.visibility = View.VISIBLE
+
+                // Convertir Map<String, String> a NotificationItem
+                val notificationItems = notifications.map { notification ->
+                    NotificationItem(
+                        appName = notification["appName"] ?: "Desconocido",
+                        title = notification["title"] ?: "",
+                        content = notification["content"] ?: "",
+                        timestamp = try {
+                            dateFormat.parse(notification["timestamp"] ?: "")?.time ?: System.currentTimeMillis()
+                        } catch (e: Exception) {
+                            System.currentTimeMillis()
+                        },
+                        sender = notification["sender"],
+                        amount = notification["amount"])
+                }
+
+                // Actualizar el adaptador
+                adapter.updateData(notificationItems)
+            }
+        }
+    }
+
+    private fun showClearConfirmationDialog() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Limpiar historial")
+            .setMessage("¿Estás seguro de querer eliminar todo el historial de notificaciones?")
+            .setPositiveButton("Eliminar") { _, _ ->
+                clearHistory()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun clearHistory() {
+        binding.progressBar.visibility = View.VISIBLE
+        notificationHistoryManager.clearHistory { success ->
+            requireActivity().runOnUiThread {
+                binding.progressBar.visibility = View.GONE
+                if (success) {
+                    updateNotificationsList()
+                }
+            }
         }
     }
 

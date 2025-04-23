@@ -20,7 +20,9 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.navigation.fragment.NavHostFragment
 import com.example.notificacionesapp.databinding.ActivityMainRedesignedBinding
+import com.example.notificacionesapp.firebase.FirebaseManager
 import com.example.notificacionesapp.fragments.AccountFragment
 import com.example.notificacionesapp.fragments.HistoryFragment
 import com.example.notificacionesapp.fragments.HomeFragment
@@ -34,6 +36,10 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     lateinit var tts: TextToSpeech
     lateinit var scheduleManager: ScheduleManager
     private val permissionRequestCode = 123
+    private lateinit var firebaseManager: FirebaseManager
+    private val navController by lazy {
+        (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as NavHostFragment).navController
+    }
 
     // Fragmento actual visible
     private var currentFragment: Fragment? = null
@@ -87,6 +93,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         binding = ActivityMainRedesignedBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Inicializar FirebaseManager
+        firebaseManager = FirebaseManager()
+
         // Inicializar ScheduleManager
         scheduleManager = ScheduleManager(this)
 
@@ -99,12 +108,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Configurar la navegación
         setupNavigation()
 
-        // Por defecto, mostrar el fragmento home
-        if (savedInstanceState == null) {
-            homeFragment = HomeFragment()
-            loadFragment(homeFragment!!)
-            binding.bottomNavigation.selectedItemId = R.id.nav_home
-        }
+        // Verificar estado de autenticación
+        checkAuthState()
     }
 
     private fun applyTheme() {
@@ -121,32 +126,36 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    // En el método setupNavigation de MainActivity
     private fun setupNavigation() {
         binding.bottomNavigation.setOnItemSelectedListener { item ->
-            var fragment: Fragment? = null
-
             when (item.itemId) {
                 R.id.nav_home -> {
                     if (homeFragment == null) {
                         homeFragment = HomeFragment()
                     }
-                    fragment = homeFragment
+                    loadFragment(homeFragment!!)
                 }
-                R.id.nav_schedule -> fragment = ScheduleFragment()
-                R.id.nav_history -> fragment = HistoryFragment()
-                R.id.nav_settings -> fragment = SettingsFragment()
-                R.id.nav_account -> fragment = AccountFragment()
+                R.id.nav_schedule -> loadFragment(ScheduleFragment())
+                R.id.nav_history -> {
+                    // Verificar autenticación para ver el historial
+                    if (firebaseManager.currentUser != null) {
+                        loadFragment(HistoryFragment())
+                    } else {
+                        promptLoginForFeature("historial de notificaciones")
+                        return@setOnItemSelectedListener false
+                    }
+                }
+                R.id.nav_stats -> {
+                    // Necesitamos crear este fragmento
+                    Toast.makeText(this, "Funcionalidad de estadísticas en desarrollo", Toast.LENGTH_SHORT).show()
+                    return@setOnItemSelectedListener false
+                }
+                R.id.nav_account -> loadFragment(AccountFragment())
             }
-
-            if (fragment != null) {
-                loadFragment(fragment)
-                return@setOnItemSelectedListener true
-            }
-
-            false
+            true
         }
     }
-
     private fun loadFragment(fragment: Fragment) {
         currentFragment = fragment
         supportFragmentManager.beginTransaction()
@@ -331,6 +340,42 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         } else {
             Toast.makeText(this, getString(R.string.tts_initialization_error), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun checkAuthState() {
+        // Verificar si hay un usuario autenticado
+        if (firebaseManager.currentUser == null) {
+            // Si es la primera vez que se abre la app, mostrar información sobre el inicio de sesión
+            val prefs = getSharedPreferences("app_prefs", Context.MODE_PRIVATE)
+            val firstLaunch = prefs.getBoolean("first_launch", true)
+
+            if (firstLaunch) {
+                showLoginInfoDialog()
+                prefs.edit().putBoolean("first_launch", false).apply()
+            }
+        }
+    }
+
+    private fun showLoginInfoDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Bienvenido a NotificacionesApp")
+            .setMessage("Para aprovechar todas las funciones de la aplicación, puedes crear una cuenta " +
+                    "o iniciar sesión. Ve a la sección de 'Mi Cuenta' para comenzar.")
+            .setPositiveButton("Entendido") { dialog, _ -> dialog.dismiss() }
+            .create()
+            .show()
+    }
+
+    private fun promptLoginForFeature(featureName: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Inicio de sesión requerido")
+            .setMessage("Para acceder al $featureName, necesitas iniciar sesión o crear una cuenta.")
+            .setPositiveButton("Ir a Mi Cuenta") { _, _ ->
+                binding.bottomNavigation.selectedItemId = R.id.nav_account
+                loadFragment(AccountFragment())
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     override fun onDestroy() {

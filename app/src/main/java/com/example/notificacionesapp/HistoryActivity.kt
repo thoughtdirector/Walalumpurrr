@@ -3,8 +3,11 @@ package com.example.notificacionesapp
 import android.os.Bundle
 import android.view.View
 import android.widget.AdapterView
+import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -23,6 +26,7 @@ class HistoryActivity : AppCompatActivity() {
     private lateinit var emptyText: TextView
     private lateinit var categorySpinner: Spinner
     private lateinit var clearButton: FloatingActionButton
+    private lateinit var progressBar: ProgressBar
     private lateinit var adapter: NotificationAdapter
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
 
@@ -38,6 +42,7 @@ class HistoryActivity : AppCompatActivity() {
         emptyText = findViewById(R.id.emptyHistoryText)
         categorySpinner = findViewById(R.id.categorySpinner)
         clearButton = findViewById(R.id.clearHistoryButton)
+        progressBar = findViewById(R.id.progressBar)
 
         // Configurar RecyclerView
         recyclerView.layoutManager = LinearLayoutManager(this)
@@ -49,8 +54,7 @@ class HistoryActivity : AppCompatActivity() {
 
         // Configurar botón de limpieza
         clearButton.setOnClickListener {
-            notificationHistoryManager.clearHistory()
-            updateNotificationsList()
+            showClearConfirmationDialog()
         }
 
         // Cargar el historial
@@ -72,46 +76,91 @@ class HistoryActivity : AppCompatActivity() {
     private fun updateNotificationsList() {
         val selectedCategory = categorySpinner.selectedItem.toString()
 
-        val notifications = when (selectedCategory) {
-            "Todas" -> notificationHistoryManager.getNotifications()
-            "Nequi" -> notificationHistoryManager.getNotificationsByType("NEQUI")
-            "DaviPlata" -> notificationHistoryManager.getNotificationsByType("DAVIPLATA")
-            "Bancolombia" -> notificationHistoryManager.getNotificationsByType("BANCOLOMBIA")
-            "WhatsApp" -> notificationHistoryManager.getNotificationsByType("WHATSAPP")
-            else -> notificationHistoryManager.getNotifications()
-        }
+        // Mostrar progreso
+        emptyText.visibility = View.GONE
+        recyclerView.visibility = View.GONE
+        progressBar.visibility = View.VISIBLE
 
-        if (notifications.isEmpty()) {
-            emptyText.visibility = View.VISIBLE
-            recyclerView.visibility = View.GONE
+        if (selectedCategory == "Todas") {
+            notificationHistoryManager.getNotifications { notifications ->
+                handleNotificationsResult(notifications)
+            }
         } else {
-            emptyText.visibility = View.GONE
-            recyclerView.visibility = View.VISIBLE
-
-            // Convertir Map<String, String> a NotificationItem
-            val notificationItems = notifications.map { notification ->
-                NotificationItem(
-                    appName = notification["appName"] ?: "Desconocido",
-                    title = notification["title"] ?: "",
-                    content = notification["content"] ?: "",
-                    timestamp = try {
-                        dateFormat.parse(notification["timestamp"] ?: "")?.time ?: System.currentTimeMillis()
-                    } catch (e: Exception) {
-                        System.currentTimeMillis()
-                    },
-                    sender = notification["sender"],
-                    amount = notification["amount"]
-                )
+            val type = when (selectedCategory) {
+                "Nequi" -> "NEQUI"
+                "DaviPlata" -> "DAVIPLATA"
+                "Bancolombia" -> "BANCOLOMBIA"
+                "WhatsApp" -> "WHATSAPP"
+                else -> "OTRO"
             }
 
-            // Actualizar el adaptador
-            adapter.updateData(notificationItems)
+            notificationHistoryManager.getNotificationsByType(type) { notifications ->
+                handleNotificationsResult(notifications)
+            }
+        }
+    }
+
+    private fun handleNotificationsResult(notifications: List<Map<String, String>>) {
+        runOnUiThread {
+            progressBar.visibility = View.GONE
+
+            if (notifications.isEmpty()) {
+                emptyText.visibility = View.VISIBLE
+                recyclerView.visibility = View.GONE
+            } else {
+                emptyText.visibility = View.GONE
+                recyclerView.visibility = View.VISIBLE
+
+                // Convertir Map<String, String> a NotificationItem
+                val notificationItems = notifications.map { notification ->
+                    NotificationItem(
+                        appName = notification["appName"] ?: "Desconocido",
+                        title = notification["title"] ?: "",
+                        content = notification["content"] ?: "",
+                        timestamp = try {
+                            dateFormat.parse(notification["timestamp"] ?: "")?.time ?: System.currentTimeMillis()
+                        } catch (e: Exception) {
+                            System.currentTimeMillis()
+                        },
+                        sender = notification["sender"],
+                        amount = notification["amount"],
+                    )
+                }
+
+                // Actualizar el adaptador
+                adapter.updateData(notificationItems)
+            }
+        }
+    }
+
+    private fun showClearConfirmationDialog() {
+        AlertDialog.Builder(this)
+            .setTitle("Limpiar historial")
+            .setMessage("¿Estás seguro de querer eliminar todo el historial de notificaciones?")
+            .setPositiveButton("Eliminar") { _, _ ->
+                clearHistory()
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun clearHistory() {
+        progressBar.visibility = View.VISIBLE
+        notificationHistoryManager.clearHistory { success ->
+            runOnUiThread {
+                progressBar.visibility = View.GONE
+                if (success) {
+                    Toast.makeText(this, "Historial eliminado", Toast.LENGTH_SHORT).show()
+                    updateNotificationsList()
+                } else {
+                    Toast.makeText(this, "Error al eliminar historial", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Actualizar la lista cada vez que la actividad se retoma
         updateNotificationsList()
     }
 }

@@ -16,6 +16,9 @@ import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.example.notificacionesapp.firebase.FirebaseManager
+import com.example.notificacionesapp.model.NotificationItem
+import com.example.notificacionesapp.model.User
 import com.example.notificacionesapp.notification.NotificationProcessorRegistry
 import com.example.notificacionesapp.util.AmountSettings
 import com.example.notificacionesapp.util.NotificationHistoryManager
@@ -33,6 +36,8 @@ class NotificationService : NotificationListenerService() {
     private lateinit var notificationHistoryManager: NotificationHistoryManager
     private lateinit var processorRegistry: NotificationProcessorRegistry
     private lateinit var amountSettings: AmountSettings
+    private lateinit var firebaseManager: FirebaseManager
+
 
     companion object {
         var isServiceActive = false
@@ -48,7 +53,9 @@ class NotificationService : NotificationListenerService() {
         // Inicializar componentes
         notificationHistoryManager = NotificationHistoryManager(this)
         processorRegistry = NotificationProcessorRegistry(notificationHistoryManager)
-        amountSettings = AmountSettings(this) // Añadir esta línea
+        amountSettings = AmountSettings(this)
+        firebaseManager = FirebaseManager()
+
 
         initializeTTS()
         loadAppSettings()
@@ -198,6 +205,7 @@ class NotificationService : NotificationListenerService() {
         }
     }
 
+    // Modificar el método onNotificationPosted para compartir notificaciones
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
             if (!isServiceActive || !ttsInitialized) {
@@ -222,18 +230,57 @@ class NotificationService : NotificationListenerService() {
 
             val message = processorRegistry.processNotification(packageName, title, text)
             if (message != null) {
-                // Extraer el monto del mensaje procesado
+                // Extraer el monto y metadata del mensaje procesado
                 val metadata = processorRegistry.getLastProcessedMetadata()
                 val amount = metadata["amount"]
 
                 // Guardar en el historial independientemente del monto
                 lastNotification = message
 
-                // Verificar si debe leerse según el límite de monto
-                if (amountSettings.shouldReadAmount(amount)) {
-                    speakOut(message)
+                // Crear objeto de notificación para Firebase
+                val notificationItem = NotificationItem(
+                    appName = metadata["appName"] ?: packageName,
+                    title = metadata["title"] ?: title,
+                    content = message,
+                    timestamp = System.currentTimeMillis(),
+                    sender = metadata["sender"],
+                    amount = amount,
+                )
+
+                // Verificar rol del usuario actual
+                if (firebaseManager.currentUser != null) {
+                    firebaseManager.getCurrentUserData(object : FirebaseManager.UserDataListener {
+                        override fun onUserDataLoaded(user: User) {
+                            // Guardar la notificación en Firebase
+                            firebaseManager.saveNotification(notificationItem)
+
+                            // Si es admin, compartir con empleados
+                            if (user.role == "admin") {
+                                firebaseManager.shareNotificationWithEmployees(notificationItem)
+                            }
+
+                            // Verificar si debe leerse según el límite de monto
+                            if (amountSettings.shouldReadAmount(amount)) {
+                                speakOut(message)
+                            } else {
+                                Log.d("NotificationService", "Notificación no leída por límite de monto: $amount")
+                            }
+                        }
+
+                        override fun onError(message: String) {
+                            Log.e("NotificationService", "Error al cargar datos de usuario: $message")
+
+                            // En caso de error, igual guardamos en local y reproducimos
+                            if (amountSettings.shouldReadAmount(amount)) {
+                                speakOut(message)
+                            }
+                        }
+                    })
                 } else {
-                    Log.d("NotificationService", "Notificación no leída por límite de monto: $amount")
+                    // Si no hay usuario logueado, solo reproducir
+                    if (amountSettings.shouldReadAmount(amount)) {
+                        speakOut(message)
+                    }
                 }
             }
         } catch (e: Exception) {
