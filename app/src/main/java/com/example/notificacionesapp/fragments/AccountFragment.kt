@@ -1,5 +1,6 @@
 package com.example.notificacionesapp.fragments
 
+import android.app.DatePickerDialog
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -13,15 +14,15 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
-import androidx.navigation.NavDirections
 import com.example.notificacionesapp.R
+import java.util.*
 
 class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
     private lateinit var auth: FirebaseAuth
     private lateinit var viewFlipper: ViewFlipper
-    private var isLoginMode = true // Estado para alternar entre inicio de sesión y registro
-    private val database = Firebase.database.reference // Initialize Realtime Database
+    private var isLoginMode = true
+    private val database = Firebase.database.reference
 
     override fun getViewBinding(
         inflater: LayoutInflater,
@@ -36,15 +37,16 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
     }
 
     override fun setupUI() {
-        // Inicializar ViewFlipper
         viewFlipper = binding.viewFlipper
 
+        viewFlipper.displayedChild = 0
+
         binding.loginButton.setOnClickListener {
-            if (isLoginMode) {
-                login()
-            } else {
-                register()
-            }
+            login()
+        }
+
+        binding.registerButton.setOnClickListener {
+            register()
         }
 
         binding.registerPrompt.setOnClickListener {
@@ -55,19 +57,39 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
             forgotPassword()
         }
 
-        // Mostrar el formulario de inicio de sesión inicialmente
-        viewFlipper.showPrevious()
+        // Date Picker
+        binding.birthDateEditText.setOnClickListener {
+            showDatePickerDialog()
+        }
+    }
+
+    private fun showDatePickerDialog() {
+        val calendar = Calendar.getInstance()
+        val year = calendar.get(Calendar.YEAR)
+        val month = calendar.get(Calendar.MONTH)
+        val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+        val datePickerDialog = DatePickerDialog(
+            requireContext(),
+            { _, selectedYear, selectedMonth, selectedDayOfMonth ->
+                val formattedMonth = String.format("%02d", selectedMonth + 1)
+                val formattedDay = String.format("%02d", selectedDayOfMonth)
+                binding.birthDateEditText.setText("$selectedYear-$formattedMonth-$formattedDay")
+            },
+            year,
+            month,
+            day
+        )
+        datePickerDialog.show()
     }
 
     private fun toggleMode() {
         isLoginMode = !isLoginMode
         if (isLoginMode) {
-            viewFlipper.showPrevious() // Show login form
-            binding.loginButton.text = "INICIAR SESIÓN"
+            viewFlipper.displayedChild = 0
             binding.registerPrompt.text = "¿No tienes una cuenta? Regístrate"
         } else {
-            viewFlipper.showNext() // Show register form
-            binding.loginButton.text = "REGISTRARSE"
+            viewFlipper.displayedChild = 1
             binding.registerPrompt.text = "¿Ya tienes una cuenta? Inicia sesión"
         }
     }
@@ -79,7 +101,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
         val lastName = binding.lastNameEditText.text.toString()
         val phone = binding.phoneEditText.text.toString()
         val birthDate = binding.birthDateEditText.text.toString()
-        val role = "admin" // Set role to "admin"
+        val role = "admin"
 
         if (email.isEmpty() || password.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || phone.isEmpty() || birthDate.isEmpty()) {
             Toast.makeText(requireContext(), "Todos los campos son requeridos", Toast.LENGTH_SHORT).show()
@@ -89,12 +111,10 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener(requireActivity()) { task ->
                 if (task.isSuccessful) {
-                    // Sign in success, update UI with the signed-in user's information
                     Log.d(TAG, "createUserWithEmail:success")
                     val user = auth.currentUser
                     Toast.makeText(requireContext(), "Registro exitoso.", Toast.LENGTH_SHORT).show()
 
-                    // Write user data to Realtime Database
                     user?.uid?.let { uid ->
                         val userData = hashMapOf(
                             "firstName" to firstName,
@@ -117,13 +137,17 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                             }
                     }
                 } else {
-                    // If sign in fails, display a message to the user.
                     Log.w(TAG, "createUserWithEmail:failure", task.exception)
-                    val errorCode = (task.exception as FirebaseAuthException).errorCode
-                    val errorMessage = when (errorCode) {
-                        "ERROR_EMAIL_ALREADY_IN_USE" -> "Este correo electrónico ya está en uso."
-                        "ERROR_INVALID_EMAIL" -> "El correo electrónico no es válido."
-                        "ERROR_WEAK_PASSWORD" -> "La contraseña es demasiado débil."
+                    val errorMessage = when (task.exception) {
+                        is FirebaseAuthException -> {
+                            val errorCode = (task.exception as FirebaseAuthException).errorCode
+                            when (errorCode) {
+                                "ERROR_EMAIL_ALREADY_IN_USE" -> "Este correo electrónico ya está en uso."
+                                "ERROR_INVALID_EMAIL" -> "El correo electrónico no es válido."
+                                "ERROR_WEAK_PASSWORD" -> "La contraseña es demasiado débil."
+                                else -> "Error de registro: ${task.exception?.message}"
+                            }
+                        }
                         else -> "Error de registro: ${task.exception?.message}"
                     }
                     Toast.makeText(requireContext(), errorMessage, Toast.LENGTH_SHORT).show()
@@ -143,19 +167,22 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
         auth.signInWithEmailAndPassword(email, password)
             .addOnCompleteListener(requireActivity()) { task ->
                 if (task.isSuccessful) {
-                    // Sign in success, update UI with the signed-in user's information
                     Log.d(TAG, "signInWithEmail:success")
                     val user = auth.currentUser
                     Toast.makeText(requireContext(), "Inicio de sesión exitoso.", Toast.LENGTH_SHORT).show()
                     val direction = R.id.action_accountFragment_to_homeFragment
                     findNavController().navigate(direction)
                 } else {
-                    // If sign in fails, display a message to the user.
                     Log.w(TAG, "signInWithEmail:failure", task.exception)
-                    val errorCode = (task.exception as FirebaseAuthException).errorCode
-                    val errorMessage = when (errorCode) {
-                        "ERROR_INVALID_CREDENTIAL" -> "Correo electrónico o contraseña incorrectos."
-                        "ERROR_USER_NOT_FOUND" -> "No hay ningún usuario registrado con este correo electrónico."
+                    val errorMessage = when (task.exception) {
+                        is FirebaseAuthException -> {
+                            val errorCode = (task.exception as FirebaseAuthException).errorCode
+                            when (errorCode) {
+                                "ERROR_INVALID_CREDENTIAL" -> "Correo electrónico o contraseña incorrectos."
+                                "ERROR_USER_NOT_FOUND" -> "No hay ningún usuario registrado con este correo electrónico."
+                                else -> "Error de inicio de sesión: ${task.exception?.message}"
+                            }
+                        }
                         else -> "Error de inicio de sesión: ${task.exception?.message}"
                     }
                     Toast.makeText(requireContext(), errorMessage, Toast.LENGTH_SHORT).show()
@@ -164,7 +191,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
     }
 
     private fun forgotPassword() {
-        val email = binding.loginEmailEditText.text.toString() // Usar el email de inicio de sesión
+        val email = binding.loginEmailEditText.text.toString()
 
         if (email.isEmpty()) {
             Toast.makeText(requireContext(), "Correo electrónico es requerido", Toast.LENGTH_SHORT).show()

@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "55580771174",
+    "firebase_url": "https://notibank-8718b-default-rtdb.firebaseio.com",
     "project_id": "notibank-8718b",
     "storage_bucket": "notibank-8718b.firebasestorage.app"
   },
