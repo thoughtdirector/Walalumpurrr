@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "55580771174",
+    "project_id": "notibank-8718b",
+    "storage_bucket": "notibank-8718b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:55580771174:android:4e154cc78e62c05e4efea7",
+        "android_client_info": {
+          "package_name": "com.example.notificacionesapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0ZcvQmJaHgJF1EYDO2yJ5gnoUarhnX7U"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

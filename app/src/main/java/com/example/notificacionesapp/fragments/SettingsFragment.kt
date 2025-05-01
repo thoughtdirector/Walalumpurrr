@@ -13,6 +13,10 @@ import com.example.notificacionesapp.R
 import com.example.notificacionesapp.ThemeActivity
 import com.example.notificacionesapp.databinding.FragmentSettingsBinding
 import com.example.notificacionesapp.util.AmountSettings
+import android.app.AlertDialog
+import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
 
 class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
@@ -38,6 +42,17 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
         binding.testServiceButton.setOnClickListener {
             testService()
+        }
+
+        // Verificar el rol del usuario y mostrar el botón de crear empleado si es admin
+        val activity = requireActivity() as? MainActivity
+        if (activity?.userRole == "admin") {
+            binding.createEmployeeButton.visibility = View.VISIBLE
+            binding.createEmployeeButton.setOnClickListener {
+                showCreateEmployeeDialog()
+            }
+        } else {
+            binding.createEmployeeButton.visibility = View.GONE
         }
     }
 
@@ -123,5 +138,51 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         } else {
             Toast.makeText(requireContext(), getString(R.string.activate_service_first), Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun showCreateEmployeeDialog() {
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Crear Nuevo Empleado")
+
+        val inputLayout = LinearLayout(requireContext())
+        inputLayout.orientation = LinearLayout.VERTICAL
+        val emailInput = EditText(requireContext())
+        emailInput.hint = "Correo Electrónico"
+        inputLayout.addView(emailInput)
+        val firstNameInput = EditText(requireContext())
+        firstNameInput.hint = "Nombre"
+        inputLayout.addView(firstNameInput)
+        val lastNameInput = EditText(requireContext())
+        lastNameInput.hint = "Apellido"
+        inputLayout.addView(lastNameInput)
+        val phoneInput = EditText(requireContext())
+        phoneInput.hint = "Teléfono"
+        inputLayout.addView(phoneInput)
+        val birthDateInput = EditText(requireContext())
+        birthDateInput.hint = "Fecha de Nacimiento (YYYY-MM-DD)"
+        inputLayout.addView(birthDateInput)
+
+        builder.setView(inputLayout)
+
+        builder.setPositiveButton("Crear") { dialog, _ ->
+            val email = emailInput.text.toString()
+            val firstName = firstNameInput.text.toString()
+            val lastName = lastNameInput.text.toString()
+            val phone = phoneInput.text.toString()
+            val birthDate = birthDateInput.text.toString()
+
+            if (email.isNotEmpty() && firstName.isNotEmpty() && lastName.isNotEmpty() && phone.isNotEmpty() && birthDate.isNotEmpty()) {
+                val activity = requireActivity() as? MainActivity
+                activity?.createEmployeeAccount(email, firstName, lastName, phone, birthDate)
+            } else {
+                Toast.makeText(requireContext(), "Todos los campos son requeridos", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        builder.setNegativeButton("Cancelar") { dialog, _ ->
+            dialog.cancel()
+        }
+
+        builder.show()
     }
 }
