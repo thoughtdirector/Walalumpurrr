@@ -8,13 +8,13 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import android.widget.ViewFlipper
-import androidx.navigation.fragment.findNavController
+import com.example.notificacionesapp.MainActivity
+import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentAccountBinding
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
-import com.example.notificacionesapp.R
 import java.util.*
 
 class AccountFragment : BaseFragment<FragmentAccountBinding>() {
@@ -126,14 +126,19 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                         database.child("users").child(uid).setValue(userData)
                             .addOnSuccessListener {
                                 Log.d(TAG, "User data written to database")
-                                val direction = R.id.action_accountFragment_to_homeFragment
-                                findNavController().navigate(direction)
+
+                                // Crear sesión local con SessionManager
+                                val mainActivity = activity as? MainActivity
+                                mainActivity?.createUserSession(uid, email, role)
+
+                                // Cargar fragmento Home
+                                mainActivity?.homeFragment = HomeFragment()
+                                mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                             }
                             .addOnFailureListener { e ->
                                 Log.e(TAG, "Error writing user data to database", e)
                                 Toast.makeText(requireContext(), "Error al guardar los datos del usuario.", Toast.LENGTH_SHORT).show()
-                                val direction = R.id.action_accountFragment_to_homeFragment
-                                findNavController().navigate(direction)
                             }
                     }
                 } else {
@@ -170,8 +175,35 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                     Log.d(TAG, "signInWithEmail:success")
                     val user = auth.currentUser
                     Toast.makeText(requireContext(), "Inicio de sesión exitoso.", Toast.LENGTH_SHORT).show()
-                    val direction = R.id.action_accountFragment_to_homeFragment
-                    findNavController().navigate(direction)
+
+                    // Obtener el rol del usuario de Firebase y guardar sesión
+                    user?.uid?.let { uid ->
+                        database.child("users").child(uid).child("role").get()
+                            .addOnSuccessListener { snapshot ->
+                                val role = snapshot.value as? String ?: "user"
+
+                                // Crear sesión local con SessionManager
+                                val mainActivity = activity as? MainActivity
+                                mainActivity?.createUserSession(uid, email, role)
+
+                                // Cargar fragmento Home
+                                mainActivity?.homeFragment = HomeFragment()
+                                mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Error obteniendo rol de usuario: ${e.message}")
+
+                                // Si falla, usar un rol predeterminado
+                                val mainActivity = activity as? MainActivity
+                                mainActivity?.createUserSession(uid, email, "user")
+
+                                // Cargar fragmento Home
+                                mainActivity?.homeFragment = HomeFragment()
+                                mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
+                            }
+                    }
                 } else {
                     Log.w(TAG, "signInWithEmail:failure", task.exception)
                     val errorMessage = when (task.exception) {

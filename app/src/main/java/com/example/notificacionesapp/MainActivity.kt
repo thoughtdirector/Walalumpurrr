@@ -24,13 +24,15 @@ import com.example.notificacionesapp.databinding.ActivityMainRedesignedBinding
 import com.example.notificacionesapp.fragments.AccountFragment
 import com.example.notificacionesapp.fragments.HistoryFragment
 import com.example.notificacionesapp.fragments.HomeFragment
+import com.example.notificacionesapp.fragments.ManageEmployeesFragment
+import com.example.notificacionesapp.fragments.ProfileFragment
 import com.example.notificacionesapp.fragments.ScheduleFragment
 import com.example.notificacionesapp.fragments.SettingsFragment
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
-import com.google.firebase.auth.ktx.auth // Import ktx auth
-import com.google.firebase.ktx.Firebase // Import Firebase
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
@@ -38,18 +40,18 @@ import com.google.firebase.database.ktx.database
 import java.util.Locale
 import java.util.UUID
 
-
-
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
-    private lateinit var binding: ActivityMainRedesignedBinding
+    lateinit var binding: ActivityMainRedesignedBinding
     lateinit var tts: TextToSpeech
     lateinit var scheduleManager: ScheduleManager
+    lateinit var sessionManager: SessionManager
     private val permissionRequestCode = 123
 
     // Fragmento actual visible
     private var currentFragment: Fragment? = null
-    private var homeFragment: HomeFragment? = null
+    var homeFragment: HomeFragment? = null
+    var profileFragment: ProfileFragment? = null
 
     // Firebase Auth instance
     private lateinit var auth: FirebaseAuth
@@ -111,6 +113,9 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Initialize Firebase Auth
         auth = Firebase.auth
 
+        // Inicializar SessionManager
+        sessionManager = SessionManager(this)
+
         // Inicializar ScheduleManager
         scheduleManager = ScheduleManager(this)
 
@@ -123,16 +128,56 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Configurar la navegación
         setupNavigation()
 
-        // Por defecto, mostrar el fragmento home
+        // Verificar si ya hay sesión activa
         if (savedInstanceState == null) {
+            checkAuthState()
+        }
+    }
+
+    private fun checkAuthState() {
+        // Primero verificar si hay sesión guardada en preferencias
+        if (sessionManager.isLoggedIn()) {
+            // Existe sesión guardada, recuperar datos
+            val userId = sessionManager.getUserId()
+            userRole = sessionManager.getUserRole()
+
+            Log.d(TAG, "Sesión recuperada. UserID: $userId, Role: $userRole")
+
             homeFragment = HomeFragment()
             loadFragment(homeFragment!!)
             binding.bottomNavigation.selectedItemId = R.id.nav_home
-        }
 
-        // Get the user's role after successful login
-        auth.currentUser?.let { user ->
-            getUserRole(user.uid)
+            // Verificar si también está autenticado en Firebase
+            if (auth.currentUser == null || auth.currentUser?.uid != userId) {
+                // No está autenticado en Firebase, pero tiene sesión local
+                // Esta situación podría ocurrir si la sesión en Firebase expiró
+                Log.w(TAG, "Sesión local activa pero no hay sesión en Firebase. Cerrando sesión.")
+                Toast.makeText(this, "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+                    Toast.LENGTH_LONG).show()
+                sessionManager.logoutUser()
+
+                val accountFragment = AccountFragment()
+                loadFragment(accountFragment)
+                binding.bottomNavigation.selectedItemId = R.id.nav_account
+            }
+        } else {
+            // No hay sesión guardada, verificar Firebase
+            val currentUser = auth.currentUser
+            if (currentUser != null) {
+                // Usuario autenticado en Firebase pero no tiene sesión local
+                Log.d(TAG, "Usuario autenticado en Firebase: ${currentUser.email}")
+                getUserRole(currentUser.uid)
+
+                homeFragment = HomeFragment()
+                loadFragment(homeFragment!!)
+                binding.bottomNavigation.selectedItemId = R.id.nav_home
+            } else {
+                // No hay ninguna sesión, cargar vista principal
+                Log.d(TAG, "No hay sesión activa")
+                homeFragment = HomeFragment()
+                loadFragment(homeFragment!!)
+                binding.bottomNavigation.selectedItemId = R.id.nav_home
+            }
         }
     }
 
@@ -164,12 +209,22 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 R.id.nav_schedule -> fragment = ScheduleFragment()
                 R.id.nav_history -> fragment = HistoryFragment()
                 R.id.nav_settings -> fragment = SettingsFragment()
-                R.id.nav_account -> fragment = AccountFragment()
+                R.id.nav_account -> {
+                    // Si ya está autenticado, ir a página de perfil en lugar de login
+                    if (auth.currentUser != null || sessionManager.isLoggedIn()) {
+                        if (profileFragment == null) {
+                            profileFragment = ProfileFragment()
+                        }
+                        fragment = profileFragment
+                    } else {
+                        fragment = AccountFragment()
+                    }
+                }
             }
 
             if (fragment != null) {
                 // Restrict navigation for employees
-                if (userRole == "employee" && item.itemId != R.id.nav_home) {
+                if (userRole == "employee" && item.itemId != R.id.nav_home && item.itemId != R.id.nav_account) {
                     Toast.makeText(this, "Acceso restringido", Toast.LENGTH_SHORT).show()
                     return@setOnItemSelectedListener false
                 }
@@ -181,11 +236,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun loadFragment(fragment: Fragment) {
+    fun loadFragment(fragment: Fragment) {
         currentFragment = fragment
         supportFragmentManager.beginTransaction()
             .replace(R.id.nav_host_fragment, fragment)
             .commit()
+    }
+
+    fun loadManageEmployeesFragment() {
+        val fragment = ManageEmployeesFragment()
+        loadFragment(fragment)
     }
 
     private fun checkAndRequestPermissions() {
@@ -376,7 +436,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onDestroy()
     }
 
-    private fun getUserRole(uid: String) {
+    fun getUserRole(uid: String) {
         val database = Firebase.database
         val userRef = database.getReference("users").child(uid).child("role")
 
@@ -384,15 +444,50 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 userRole = snapshot.value as? String
                 Log.d(TAG, "User role: $userRole")
+
+                // Guardar rol en SessionManager
+                userRole?.let {
+                    sessionManager.updateUserRole(it)
+                }
+
                 setupNavigation()
             }
 
             override fun onCancelled(error: DatabaseError) {
                 Log.e(TAG, "Error getting user role: ${error.message}")
                 userRole = "employee"
+
+                // Guardar rol por defecto en SessionManager
+                sessionManager.updateUserRole(userRole ?: "employee")
+
                 setupNavigation()
             }
         })
+    }
+
+    // Método para crear sesión local (llamado desde AccountFragment)
+    fun createUserSession(userId: String, email: String, role: String) {
+        sessionManager.createLoginSession(userId, email, role)
+        userRole = role
+        setupNavigation()
+    }
+
+    // Método para cerrar sesión
+    fun logoutUser() {
+        // Cerrar sesión de Firebase
+        auth.signOut()
+
+        // Cerrar sesión local
+        sessionManager.logoutUser()
+
+        userRole = null
+
+        Toast.makeText(this, "Sesión cerrada correctamente", Toast.LENGTH_SHORT).show()
+
+        // Redirigir a página de inicio
+        homeFragment = HomeFragment()
+        loadFragment(homeFragment!!)
+        binding.bottomNavigation.selectedItemId = R.id.nav_home
     }
 
     fun createEmployeeAccount(
@@ -419,7 +514,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             "phone" to phone,
                             "birthDate" to birthDate,
                             "role" to "employee",
-                            "adminId" to adminUid
+                            "adminId" to adminUid,
+                            "email" to email
                         )
 
                         Firebase.database.reference.child("users").child(employeeUid).setValue(employeeData)
@@ -446,7 +542,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
     }
 
-
     // Helper function to generate a random password
     private fun generateRandomPassword(length: Int = 12): String {
         val allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -455,7 +550,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .joinToString("")
     }
 
-    // Helper function to display employee credentials (You'll need to implement this UI part)
+    // Helper function to display employee credentials
     private fun showEmployeeCredentials(email: String, password: String) {
         AlertDialog.Builder(this)
             .setTitle("Credenciales del Empleado")
