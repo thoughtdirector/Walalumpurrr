@@ -13,7 +13,12 @@
           "package_name": "com.example.notificacionesapp"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "55580771174-d1dq71f2m8tabiduv69mggcn9jbpi5ng.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyD0ZcvQmJaHgJF1EYDO2yJ5gnoUarhnX7U"
@@ -21,7 +26,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "55580771174-d1dq71f2m8tabiduv69mggcn9jbpi5ng.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
