@@ -5,7 +5,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import android.widget.Toast
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.notificacionesapp.SessionManager
 import com.example.notificacionesapp.adapter.NotificationAdapter
 import com.example.notificacionesapp.databinding.FragmentHistoryBinding
 import com.example.notificacionesapp.firebase.NotificationSyncService
@@ -13,6 +15,8 @@ import com.example.notificacionesapp.model.NotificationItem
 import com.example.notificacionesapp.util.NotificationHistoryManager
 import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
+import com.example.notificacionesapp.model.FirestoreNotification
+import com.example.notificacionesapp.firebase.FirestoreService
 import java.util.Date
 import java.util.Locale
 
@@ -86,10 +90,23 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
     }
 
     private fun startListeningForNotifications() {
-        // Mostrar indicador de carga
+        // Show progress indicator
         binding.progressBar.visibility = View.VISIBLE
 
-        // Para categorías específicas, usar el filtro por tipo
+        val sessionManager = SessionManager(requireContext())
+        val userId = sessionManager.getUserId() ?: return
+        val role = sessionManager.getUserRole() ?: "user"
+
+        // Determine adminId
+        val adminId = if (role == "admin") {
+            userId
+        } else {
+            sessionManager.getUserDetails()["adminId"] ?: return
+        }
+
+        val firestoreService = FirestoreService()
+
+        // For specific categories, use type filter
         if (currentCategory != "Todas") {
             val type = when (currentCategory) {
                 "Nequi" -> "NEQUI"
@@ -100,19 +117,63 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
             }
 
             if (type.isNotEmpty()) {
-                notificationSyncService.getNotificationsByType(type) { notifications ->
-                    handleNotifications(notifications)
-                }
+                firestoreService.getNotificationsByType(
+                    adminId = adminId,
+                    type = type,
+                    onSuccess = { notifications ->
+                        handleFirestoreNotifications(notifications)
+                    },
+                    onError = { e ->
+                        binding.progressBar.visibility = View.GONE
+                        Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                    }
+                )
                 return
             }
         }
 
-        // Para "Todas", obtener todas las notificaciones
-        notificationSyncService.startListeningForNotifications { notifications ->
-            handleNotifications(notifications)
-        }
+        // For "All", use listener for real-time updates
+        firestoreService.addNotificationsListener(
+            adminId = adminId,
+            onUpdate = { notifications ->
+                handleFirestoreNotifications(notifications)
+            },
+            onError = { e ->
+                binding.progressBar.visibility = View.GONE
+                Toast.makeText(requireContext(), "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        )
     }
 
+    // Add this helper method
+    private fun handleFirestoreNotifications(firestoreNotifications: List<FirestoreNotification>) {
+        binding.progressBar.visibility = View.GONE
+
+        if (firestoreNotifications.isEmpty()) {
+            binding.emptyHistoryText.visibility = View.VISIBLE
+            binding.historyRecyclerView.visibility = View.GONE
+        } else {
+            binding.emptyHistoryText.visibility = View.GONE
+            binding.historyRecyclerView.visibility = View.VISIBLE
+
+            // Convert to NotificationItem objects
+            val notificationItems = firestoreNotifications.map { notification ->
+                NotificationItem(
+                    id = notification.id,
+                    appName = notification.appName,
+                    title = notification.title,
+                    content = notification.content,
+                    timestamp = notification.timestamp?.toDate()?.time ?: System.currentTimeMillis(),
+                    sender = notification.sender,
+                    amount = notification.amount,
+                    isRead = notification.read
+                )
+            }
+
+            // Update adapter
+            adapter.updateData(notificationItems)
+        }
+    }
     private fun handleNotifications(notifications: List<NotificationItem>) {
         // Ocultar indicador de carga
         binding.progressBar.visibility = View.GONE

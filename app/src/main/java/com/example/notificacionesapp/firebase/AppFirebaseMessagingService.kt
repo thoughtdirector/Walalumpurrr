@@ -12,7 +12,7 @@ import androidx.core.app.NotificationCompat
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.R
 import com.example.notificacionesapp.SessionManager
-import com.google.firebase.database.ktx.database
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -90,23 +90,41 @@ class AppFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.d(TAG, "Refreshed token: $token")
-        sendRegistrationToServer(token)
+        Log.d(TAG, "Refreshed FCM token: $token")
+
+        val sessionManager = SessionManager(this)
+        if (sessionManager.isLoggedIn()) {
+            val userId = sessionManager.getUserId() ?: return
+
+            // Update token in Firestore
+            Firebase.firestore.collection("users")
+                .document(userId)
+                .update("fcmToken", token)
+                .addOnSuccessListener {
+                    Log.d(TAG, "FCM token updated in Firestore from service")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error updating FCM token in Firestore: ${e.message}")
+                }
+        }
     }
 
+    // Replace the sendRegistrationToServer method
     private fun sendRegistrationToServer(token: String) {
-        // Aquí puedes implementar el envío del token al servidor
-        // Para sincronizar dispositivos específicos
         val sessionManager = SessionManager(this)
         if (sessionManager.isLoggedIn()) {
             val userId = sessionManager.getUserId()
             userId?.let {
-                // Guardar token en Firebase para este usuario
-                Firebase.database.reference
-                    .child("users")
-                    .child(it)
-                    .child("fcmToken")
-                    .setValue(token)
+                // Update FCM token in Firestore
+                Firebase.firestore.collection("users")
+                    .document(it)
+                    .update("fcmToken", token)
+                    .addOnSuccessListener {
+                        Log.d(TAG, "FCM token updated in Firestore from service")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Error updating FCM token in Firestore: ${e.message}")
+                    }
             }
         }
     }

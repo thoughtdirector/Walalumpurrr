@@ -22,8 +22,10 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.database.ktx.database
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
+import com.example.notificacionesapp.model.FirestoreUser
 import java.util.*
 
 class AccountFragment : BaseFragment<FragmentAccountBinding>() {
@@ -31,7 +33,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
     private lateinit var auth: FirebaseAuth
     private lateinit var viewFlipper: ViewFlipper
     private var isLoginMode = true
-    private val database = Firebase.database.reference
+    private val database = Firebase.firestore
 
     // Google Sign In
     private lateinit var googleSignInClient: GoogleSignInClient
@@ -144,7 +146,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
         val lastName = binding.lastNameEditText.text.toString()
         val phone = binding.phoneEditText.text.toString()
         val birthDate = binding.birthDateEditText.text.toString()
-        val role = "admin"
+        val role = "admin" // First user is admin
 
         if (email.isEmpty() || password.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || phone.isEmpty() || birthDate.isEmpty()) {
             Toast.makeText(requireContext(), "Todos los campos son requeridos", Toast.LENGTH_SHORT).show()
@@ -159,28 +161,35 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                     Toast.makeText(requireContext(), "Registro exitoso.", Toast.LENGTH_SHORT).show()
 
                     user?.uid?.let { uid ->
-                        val userData = hashMapOf(
-                            "firstName" to firstName,
-                            "lastName" to lastName,
-                            "phone" to phone,
-                            "birthDate" to birthDate,
-                            "role" to role
+                        // Create user for Firestore
+                        val firestoreUser = FirestoreUser(
+                            uid = uid,
+                            firstName = firstName,
+                            lastName = lastName,
+                            phone = phone,
+                            birthDate = birthDate,
+                            email = email,
+                            role = role
                         )
-                        database.child("users").child(uid).setValue(userData)
-                            .addOnSuccessListener {
-                                Log.d(TAG, "User data written to database")
 
-                                // Crear sesión local con SessionManager
+                        // Save to Firestore
+                        Firebase.firestore.collection("users")
+                            .document(uid)
+                            .set(firestoreUser)
+                            .addOnSuccessListener {
+                                Log.d(TAG, "User data written to Firestore")
+
+                                // Create session
                                 val mainActivity = activity as? MainActivity
                                 mainActivity?.createUserSession(uid, email, role)
 
-                                // Cargar fragmento Home
+                                // Load Home fragment
                                 mainActivity?.homeFragment = HomeFragment()
                                 mainActivity?.loadFragment(mainActivity.homeFragment!!)
                                 mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                             }
                             .addOnFailureListener { e ->
-                                Log.e(TAG, "Error writing user data to database", e)
+                                Log.e(TAG, "Error writing user data to Firestore", e)
                                 Toast.makeText(requireContext(), "Error al guardar los datos del usuario.", Toast.LENGTH_SHORT).show()
                             }
                     }

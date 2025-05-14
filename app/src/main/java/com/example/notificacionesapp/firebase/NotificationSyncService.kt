@@ -35,6 +35,7 @@ class NotificationSyncService(private val context: Context) {
     }
 
     // Guardar una notificación en Firebase
+// In NotificationSyncService.kt - modify the saveNotification method
     fun saveNotification(
         packageName: String,
         appName: String,
@@ -45,18 +46,31 @@ class NotificationSyncService(private val context: Context) {
         sender: String = ""
     ) {
         try {
-            val userId = sessionManager.getUserId() ?: return
-            val role = sessionManager.getUserRole() ?: "user"
-
-            // Determinar el adminId
-            val adminId = if (role == "admin") {
-                userId // El usuario actual es admin
-            } else {
-                // Buscar el adminId del empleado desde preferencias
-                sessionManager.getUserDetails()["adminId"] ?: return
+            val userId = sessionManager.getUserId()
+            if (userId == null) {
+                Log.e(TAG, "Failed to save notification: No user ID found in session")
+                return
             }
 
-            // Crear objeto de notificación
+            val role = sessionManager.getUserRole() ?: "user"
+            Log.d(TAG, "Saving notification as role: $role, userId: $userId")
+
+            // Determine the adminId
+            val adminId = if (role == "admin") {
+                userId // Current user is admin
+            } else {
+                // Get adminId from preferences
+                val adminIdFromPrefs = sessionManager.getUserDetails()["adminId"]
+                if (adminIdFromPrefs == null) {
+                    Log.e(TAG, "Failed to save notification: Employee has no adminId")
+                    return
+                }
+                adminIdFromPrefs
+            }
+
+            Log.d(TAG, "Using adminId: $adminId for notification")
+
+            // Create notification object
             val notificationId = UUID.randomUUID().toString()
             val notification = FirebaseNotification(
                 id = notificationId,
@@ -72,27 +86,30 @@ class NotificationSyncService(private val context: Context) {
                 read = false
             )
 
-            // Guardar usando NotificationDatabase
+            // Save using NotificationDatabase
             notificationDatabase.saveNotification(
                 notification = notification,
                 onSuccess = {
-                    Log.d(TAG, "Notificación guardada correctamente en Firebase")
+                    Log.d(TAG, "Notification saved successfully to Firebase with id: ${notification.id}")
 
-                    // Notificar a empleados si es administrador
+                    // Notify employees if administrator
                     if (role == "admin") {
+                        Log.d(TAG, "Attempting to notify employees as admin")
                         adminNotificationService.notifyEmployees(adminId, notification)
+                    } else {
+                        Log.d(TAG, "Skipping employee notification as user is not admin")
                     }
 
-                    // Limpiar notificaciones antiguas (más de 30 días)
+                    // Clean up old notifications (more than 30 days)
                     val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
                     notificationDatabase.cleanupOldNotifications(adminId, thirtyDaysAgo)
                 },
                 onError = { e ->
-                    Log.e(TAG, "Error al guardar notificación en Firebase: ${e.message}")
+                    Log.e(TAG, "Error saving notification to Firebase: ${e.message}")
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error en saveNotification: ${e.message}")
+            Log.e(TAG, "Error in saveNotification: ${e.message}", e)
         }
     }
 

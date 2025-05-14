@@ -15,16 +15,13 @@ import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentProfileBinding
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.database.ktx.database
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
 class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
 
     private lateinit var auth: FirebaseAuth
-    private val database = Firebase.database.reference
+    private val database = Firebase.firestore
     private var userDetails: Map<String, Any?> = HashMap()
 
     override fun getViewBinding(
@@ -53,48 +50,41 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
     private fun loadUserProfile() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
-            // Mostrar email
+            // Show email
             binding.userEmailText.text = currentUser.email
 
-            // Obtener datos adicionales de Firebase Database
-            database.child("users").child(currentUser.uid).addListenerForSingleValueEvent(
-                object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        val userData = snapshot.value as? Map<String, Any?>
-                        if (userData != null) {
-                            userDetails = userData
+            // Get additional data from Firestore
+            Firebase.firestore.collection("users").document(currentUser.uid)
+                .get()
+                .addOnSuccessListener { document ->
+                    if (document != null && document.exists()) {
+                        // Show name
+                        val firstName = document.getString("firstName") ?: ""
+                        val lastName = document.getString("lastName") ?: ""
+                        binding.userNameText.text = "$firstName $lastName"
 
-                            // Mostrar nombre
-                            val firstName = userData["firstName"] as? String ?: ""
-                            val lastName = userData["lastName"] as? String ?: ""
-                            binding.userNameText.text = "$firstName $lastName"
+                        // Show phone
+                        val phone = document.getString("phone") ?: "No disponible"
+                        binding.userPhoneText.text = "Teléfono: $phone"
 
-                            // Mostrar teléfono
-                            val phone = userData["phone"] as? String ?: "No disponible"
-                            binding.userPhoneText.text = "Teléfono: $phone"
+                        // Show role and configure UI based on role
+                        val role = document.getString("role") ?: "user"
+                        binding.userRoleText.text = "Rol: ${roleToSpanish(role)}"
 
-                            // Mostrar rol y configurar UI según rol
-                            val role = userData["role"] as? String ?: "user"
-                            binding.userRoleText.text = "Rol: ${roleToSpanish(role)}"
-
-                            // Configurar visibilidad de sección admin
-                            if (role == "admin") {
-                                binding.adminCard.visibility = View.VISIBLE
-                            } else {
-                                binding.adminCard.visibility = View.GONE
-                            }
+                        // Configure admin section visibility
+                        if (role == "admin") {
+                            binding.adminCard.visibility = View.VISIBLE
+                        } else {
+                            binding.adminCard.visibility = View.GONE
                         }
                     }
-
-                    override fun onCancelled(error: DatabaseError) {
-                        Log.e(TAG, "Error loading user data: ${error.message}")
-                        Toast.makeText(requireContext(), "Error al cargar datos del usuario", Toast.LENGTH_SHORT).show()
-                    }
                 }
-            )
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error loading user data from Firestore: ${e.message}")
+                    Toast.makeText(requireContext(), "Error al cargar datos del usuario", Toast.LENGTH_SHORT).show()
+                }
         }
     }
-
     private fun roleToSpanish(role: String): String {
         return when (role.lowercase()) {
             "admin" -> "Administrador"
@@ -180,22 +170,23 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
     private fun updateUserProfile(firstName: String, lastName: String, phone: String) {
         val currentUser = auth.currentUser
         if (currentUser != null) {
-            val updates = HashMap<String, Any>()
-            updates["firstName"] = firstName
-            updates["lastName"] = lastName
-            updates["phone"] = phone
+            val updates = hashMapOf<String, Any>(
+                "firstName" to firstName,
+                "lastName" to lastName,
+                "phone" to phone
+            )
 
-            database.child("users").child(currentUser.uid).updateChildren(updates)
+            Firebase.firestore.collection("users").document(currentUser.uid)
+                .update(updates)
                 .addOnSuccessListener {
                     Toast.makeText(requireContext(), "Perfil actualizado correctamente", Toast.LENGTH_SHORT).show()
-                    loadUserProfile() // Recargar datos
+                    loadUserProfile() // Reload data
                 }
                 .addOnFailureListener { e ->
                     Toast.makeText(requireContext(), "Error al actualizar el perfil: ${e.message}", Toast.LENGTH_SHORT).show()
                 }
         }
     }
-
     private fun showCreateEmployeeDialog() {
         val mainActivity = activity as? MainActivity
         mainActivity?.let {
