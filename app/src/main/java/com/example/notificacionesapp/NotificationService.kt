@@ -47,7 +47,7 @@ class NotificationService : NotificationListenerService() {
 
         // Inicializar componentes
         notificationHistoryManager = NotificationHistoryManager(this)
-        processorRegistry = NotificationProcessorRegistry(notificationHistoryManager)
+        processorRegistry = NotificationProcessorRegistry(applicationContext, notificationHistoryManager)
         amountSettings = AmountSettings(this) // Añadir esta línea
 
         initializeTTS()

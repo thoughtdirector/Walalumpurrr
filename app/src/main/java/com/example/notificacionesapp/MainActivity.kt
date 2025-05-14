@@ -24,20 +24,41 @@ import com.example.notificacionesapp.databinding.ActivityMainRedesignedBinding
 import com.example.notificacionesapp.fragments.AccountFragment
 import com.example.notificacionesapp.fragments.HistoryFragment
 import com.example.notificacionesapp.fragments.HomeFragment
+import com.example.notificacionesapp.fragments.ManageEmployeesFragment
+import com.example.notificacionesapp.fragments.ProfileFragment
 import com.example.notificacionesapp.fragments.ScheduleFragment
 import com.example.notificacionesapp.fragments.SettingsFragment
+import com.example.notificacionesapp.util.NotificationCleanupWorker
+import com.google.firebase.FirebaseApp
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.ktx.auth
+import com.google.firebase.ktx.Firebase
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.ktx.database
 import java.util.Locale
+import java.util.UUID
 
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
-    private lateinit var binding: ActivityMainRedesignedBinding
+    lateinit var binding: ActivityMainRedesignedBinding
     lateinit var tts: TextToSpeech
     lateinit var scheduleManager: ScheduleManager
+    lateinit var sessionManager: SessionManager
     private val permissionRequestCode = 123
 
     // Fragmento actual visible
     private var currentFragment: Fragment? = null
-    private var homeFragment: HomeFragment? = null
+    var homeFragment: HomeFragment? = null
+    var profileFragment: ProfileFragment? = null
+
+    // Firebase Auth instance
+    private lateinit var auth: FirebaseAuth
+
+    // User role
+    public var userRole: String? = null
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -87,6 +108,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         binding = ActivityMainRedesignedBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        // Initialize Firebase
+        FirebaseApp.initializeApp(this)
+
+        // Initialize Firebase Auth
+        auth = Firebase.auth
+
+        // Inicializar SessionManager
+        sessionManager = SessionManager(this)
+
         // Inicializar ScheduleManager
         scheduleManager = ScheduleManager(this)
 
@@ -99,11 +129,64 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Configurar la navegación
         setupNavigation()
 
-        // Por defecto, mostrar el fragmento home
+        // Verificar si ya hay sesión activa
         if (savedInstanceState == null) {
+            checkAuthState()
+        }
+
+        scheduleNotificationCleanup()
+
+        if (intent.getBooleanExtra("openHistoryTab", false)) {
+            val historyFragment = HistoryFragment()
+            loadFragment(historyFragment)
+            binding.bottomNavigation.selectedItemId = R.id.nav_history
+        }
+    }
+
+    private fun checkAuthState() {
+        // Primero verificar si hay sesión guardada en preferencias
+        if (sessionManager.isLoggedIn()) {
+            // Existe sesión guardada, recuperar datos
+            val userId = sessionManager.getUserId()
+            userRole = sessionManager.getUserRole()
+
+            Log.d(TAG, "Sesión recuperada. UserID: $userId, Role: $userRole")
+
             homeFragment = HomeFragment()
             loadFragment(homeFragment!!)
             binding.bottomNavigation.selectedItemId = R.id.nav_home
+
+            // Verificar si también está autenticado en Firebase
+            if (auth.currentUser == null || auth.currentUser?.uid != userId) {
+                // No está autenticado en Firebase, pero tiene sesión local
+                // Esta situación podría ocurrir si la sesión en Firebase expiró
+                Log.w(TAG, "Sesión local activa pero no hay sesión en Firebase. Cerrando sesión.")
+                Toast.makeText(this, "Tu sesión ha expirado. Por favor, inicia sesión nuevamente.",
+                    Toast.LENGTH_LONG).show()
+                sessionManager.logoutUser()
+
+                val accountFragment = AccountFragment()
+                loadFragment(accountFragment)
+                binding.bottomNavigation.selectedItemId = R.id.nav_account
+            }
+        } else {
+            // No hay sesión guardada, verificar Firebase
+            val currentUser = auth.currentUser
+            if (currentUser != null) {
+                // Usuario autenticado en Firebase pero no tiene sesión local
+                Log.d(TAG, "Usuario autenticado en Firebase: ${currentUser.email}")
+                getUserRole(currentUser.uid)
+
+                homeFragment = HomeFragment()
+                loadFragment(homeFragment!!)
+                binding.bottomNavigation.selectedItemId = R.id.nav_home
+            } else {
+                // No hay ninguna sesión, cargar vista principal
+                Log.d(TAG, "No hay sesión activa")
+                homeFragment = HomeFragment()
+                loadFragment(homeFragment!!)
+                binding.bottomNavigation.selectedItemId = R.id.nav_home
+            }
         }
     }
 
@@ -135,10 +218,25 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 R.id.nav_schedule -> fragment = ScheduleFragment()
                 R.id.nav_history -> fragment = HistoryFragment()
                 R.id.nav_settings -> fragment = SettingsFragment()
-                R.id.nav_account -> fragment = AccountFragment()
+                R.id.nav_account -> {
+                    // Si ya está autenticado, ir a página de perfil en lugar de login
+                    if (auth.currentUser != null || sessionManager.isLoggedIn()) {
+                        if (profileFragment == null) {
+                            profileFragment = ProfileFragment()
+                        }
+                        fragment = profileFragment
+                    } else {
+                        fragment = AccountFragment()
+                    }
+                }
             }
 
             if (fragment != null) {
+                // Restrict navigation for employees
+                if (userRole == "employee" && item.itemId != R.id.nav_home && item.itemId != R.id.nav_account) {
+                    Toast.makeText(this, "Acceso restringido", Toast.LENGTH_SHORT).show()
+                    return@setOnItemSelectedListener false
+                }
                 loadFragment(fragment)
                 return@setOnItemSelectedListener true
             }
@@ -147,11 +245,16 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private fun loadFragment(fragment: Fragment) {
+    fun loadFragment(fragment: Fragment) {
         currentFragment = fragment
         supportFragmentManager.beginTransaction()
             .replace(R.id.nav_host_fragment, fragment)
             .commit()
+    }
+
+    fun loadManageEmployeesFragment() {
+        val fragment = ManageEmployeesFragment()
+        loadFragment(fragment)
     }
 
     private fun checkAndRequestPermissions() {
@@ -235,6 +338,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         val pkgName = packageName
         val flat = Settings.Secure.getString(contentResolver, "enabled_notification_listeners")
         return flat != null && flat.contains(pkgName)
+    }
+
+    private fun scheduleNotificationCleanup() {
+        try {
+            val constraints = androidx.work.Constraints.Builder()
+                .setRequiresBatteryNotLow(true)
+                .setRequiresDeviceIdle(true)
+                .build()
+
+            val cleanupWorkRequest = androidx.work.PeriodicWorkRequestBuilder<NotificationCleanupWorker>(
+                7, java.util.concurrent.TimeUnit.DAYS
+            )
+                .setConstraints(constraints)
+                .build()
+
+            androidx.work.WorkManager.getInstance(this)
+                .enqueueUniquePeriodicWork(
+                    NotificationCleanupWorker.WORK_NAME,
+                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                    cleanupWorkRequest
+                )
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error al programar limpieza: ${e.message}")
+        }
     }
 
     fun promptNotificationAccess() {
@@ -342,7 +469,131 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onDestroy()
     }
 
+    fun getUserRole(uid: String) {
+        val database = Firebase.database
+        val userRef = database.getReference("users").child(uid).child("role")
+
+        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                userRole = snapshot.value as? String
+                Log.d(TAG, "User role: $userRole")
+
+                // Guardar rol en SessionManager
+                userRole?.let {
+                    sessionManager.updateUserRole(it)
+                }
+
+                setupNavigation()
+            }
+
+            override fun onCancelled(error: DatabaseError) {
+                Log.e(TAG, "Error getting user role: ${error.message}")
+                userRole = "employee"
+
+                // Guardar rol por defecto en SessionManager
+                sessionManager.updateUserRole(userRole ?: "employee")
+
+                setupNavigation()
+            }
+        })
+    }
+
+    // Método para crear sesión local (llamado desde AccountFragment)
+    fun createUserSession(userId: String, email: String, role: String) {
+        sessionManager.createLoginSession(userId, email, role)
+        userRole = role
+        setupNavigation()
+    }
+
+    // Método para cerrar sesión
+    fun logoutUser() {
+        // Cerrar sesión de Firebase
+        auth.signOut()
+
+        // Cerrar sesión local
+        sessionManager.logoutUser()
+
+        userRole = null
+
+        Toast.makeText(this, "Sesión cerrada correctamente", Toast.LENGTH_SHORT).show()
+
+        // Redirigir a página de inicio
+        homeFragment = HomeFragment()
+        loadFragment(homeFragment!!)
+        binding.bottomNavigation.selectedItemId = R.id.nav_home
+    }
+
+    fun createEmployeeAccount(
+        email: String,
+        firstName: String,
+        lastName: String,
+        phone: String,
+        birthDate: String
+    ) {
+        val password = generateRandomPassword()
+
+        auth.createUserWithEmailAndPassword(email, password)
+            .addOnCompleteListener(this) { task ->
+                if (task.isSuccessful) {
+                    Log.d(TAG, "createEmployeeAccount:success")
+                    val user = auth.currentUser
+
+                    val adminUid = auth.currentUser?.uid
+
+                    user?.uid?.let { employeeUid ->
+                        val employeeData = hashMapOf(
+                            "firstName" to firstName,
+                            "lastName" to lastName,
+                            "phone" to phone,
+                            "birthDate" to birthDate,
+                            "role" to "employee",
+                            "adminId" to auth.currentUser?.uid,
+                            "email" to email
+                        )
+
+                        Firebase.database.reference.child("users").child(employeeUid).setValue(employeeData)
+                            .addOnSuccessListener {
+                                Log.d(TAG, "Employee data written to database")
+                                showEmployeeCredentials(email, password)
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Error writing employee data to database", e)
+                                Toast.makeText(this, "Error al guardar los datos del empleado.", Toast.LENGTH_SHORT).show()
+                            }
+                    }
+                } else {
+                    Log.w(TAG, "createEmployeeAccount:failure", task.exception)
+                    val errorCode = (task.exception as? FirebaseAuthException)?.errorCode
+                    val errorMessage = when (errorCode) {
+                        "ERROR_EMAIL_ALREADY_IN_USE" -> "Este correo electrónico ya está en uso."
+                        "ERROR_INVALID_EMAIL" -> "El correo electrónico no es válido."
+                        "ERROR_WEAK_PASSWORD" -> "La contraseña es demasiado débil."
+                        else -> "Error al crear la cuenta del empleado: ${task.exception?.message}"
+                    }
+                    Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
+    // Helper function to generate a random password
+    private fun generateRandomPassword(length: Int = 12): String {
+        val allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        return (0 until length)
+            .map { allowedChars.random() }
+            .joinToString("")
+    }
+
+    // Helper function to display employee credentials
+    private fun showEmployeeCredentials(email: String, password: String) {
+        AlertDialog.Builder(this)
+            .setTitle("Credenciales del Empleado")
+            .setMessage("Email: $email\nContraseña: $password\n\n¡Guarda estas credenciales de forma segura y comunícaselas al empleado!")
+            .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+            .show()
+    }
+
     companion object {
         val updateStatusAction = "com.example.notificacionesapp.UPDATE_STATUS"
+        private const val TAG = "MainActivity"
     }
 }

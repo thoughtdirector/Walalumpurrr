@@ -39,6 +39,9 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         binding.testServiceButton.setOnClickListener {
             testService()
         }
+
+        // El botón de crear empleado ya no está en este fragmento
+        // Se ha movido al ProfileFragment
     }
 
     private fun loadSettings() {

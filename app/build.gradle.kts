@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -53,4 +54,23 @@ dependencies {
     implementation(libs.androidx.ui.graphics.android)
     implementation(libs.androidx.foundation.android)
     implementation(libs.androidx.material3.android)
+
+    implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
+    // Firebase Authentication
+    implementation("com.google.firebase:firebase-auth-ktx")
+
+    // Firebase Realtime Database
+    implementation("com.google.firebase:firebase-database-ktx")
+
+    // Firebase Cloud Messaging
+    implementation("com.google.firebase:firebase-messaging-ktx")
+
+    // Google Sign-In (añadido para autenticación con Google)
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+// OkHttp para las llamadas FCM
+    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+
+// WorkManager para tareas periódicas
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
+
 }
