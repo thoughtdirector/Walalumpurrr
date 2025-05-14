@@ -66,5 +66,10 @@ dependencies {
     implementation("com.google.firebase:firebase-messaging-ktx")
 
     implementation("com.google.firebase:firebase-bom:32.7.0")
+// OkHttp para las llamadas FCM
+    implementation("com.squareup.okhttp3:okhttp:4.11.0")
+
+// WorkManager para tareas periódicas
+    implementation("androidx.work:work-runtime-ktx:2.9.0")
 
 }

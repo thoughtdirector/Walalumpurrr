@@ -6,5 +6,7 @@ data class NotificationItem(
     val content: String,
     val timestamp: Long,
     val sender: String? = null,
-    val amount: String? = null
+    val amount: String? = null,
+    val id: String = "",
+    val isRead: Boolean = true
 )

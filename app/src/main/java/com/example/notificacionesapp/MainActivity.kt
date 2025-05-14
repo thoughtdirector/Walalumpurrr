@@ -28,6 +28,7 @@ import com.example.notificacionesapp.fragments.ManageEmployeesFragment
 import com.example.notificacionesapp.fragments.ProfileFragment
 import com.example.notificacionesapp.fragments.ScheduleFragment
 import com.example.notificacionesapp.fragments.SettingsFragment
+import com.example.notificacionesapp.util.NotificationCleanupWorker
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
@@ -131,6 +132,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         // Verificar si ya hay sesión activa
         if (savedInstanceState == null) {
             checkAuthState()
+        }
+
+        scheduleNotificationCleanup()
+
+        if (intent.getBooleanExtra("openHistoryTab", false)) {
+            val historyFragment = HistoryFragment()
+            loadFragment(historyFragment)
+            binding.bottomNavigation.selectedItemId = R.id.nav_history
         }
     }
 
@@ -331,6 +340,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         return flat != null && flat.contains(pkgName)
     }
 
+    private fun scheduleNotificationCleanup() {
+        try {
+            val constraints = androidx.work.Constraints.Builder()
+                .setRequiresBatteryNotLow(true)
+                .setRequiresDeviceIdle(true)
+                .build()
+
+            val cleanupWorkRequest = androidx.work.PeriodicWorkRequestBuilder<NotificationCleanupWorker>(
+                7, java.util.concurrent.TimeUnit.DAYS
+            )
+                .setConstraints(constraints)
+                .build()
+
+            androidx.work.WorkManager.getInstance(this)
+                .enqueueUniquePeriodicWork(
+                    NotificationCleanupWorker.WORK_NAME,
+                    androidx.work.ExistingPeriodicWorkPolicy.KEEP,
+                    cleanupWorkRequest
+                )
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error al programar limpieza: ${e.message}")
+        }
+    }
+
     fun promptNotificationAccess() {
         AlertDialog.Builder(this)
             .setTitle(getString(R.string.permission_required))
@@ -514,7 +547,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             "phone" to phone,
                             "birthDate" to birthDate,
                             "role" to "employee",
-                            "adminId" to adminUid,
+                            "adminId" to auth.currentUser?.uid,
                             "email" to email
                         )
 

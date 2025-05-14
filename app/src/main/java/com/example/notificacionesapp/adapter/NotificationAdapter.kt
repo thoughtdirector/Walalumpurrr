@@ -1,4 +1,3 @@
-// app/src/main/java/com/example/notificacionesapp/adapter/NotificationAdapter.kt
 package com.example.notificacionesapp.adapter
 
 import android.view.LayoutInflater
@@ -13,10 +12,15 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class NotificationAdapter : RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
+class NotificationAdapter(private val clickListener: NotificationClickListener? = null) : RecyclerView.Adapter<NotificationAdapter.NotificationViewHolder>() {
 
     private var notifications: List<NotificationItem> = emptyList()
     private val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+
+    // Interfaz para manejar clics en notificaciones
+    interface NotificationClickListener {
+        fun onNotificationClick(notificationId: String)
+    }
 
     fun updateData(newData: List<NotificationItem>) {
         notifications = newData
@@ -43,6 +47,7 @@ class NotificationAdapter : RecyclerView.Adapter<NotificationAdapter.Notificatio
         private val transactionDetails: LinearLayout = itemView.findViewById(R.id.transactionDetails)
         private val senderText: TextView = itemView.findViewById(R.id.senderText)
         private val amountText: TextView = itemView.findViewById(R.id.amountText)
+        private val newIndicator: View = itemView.findViewById(R.id.newIndicator)
 
         fun bind(notification: NotificationItem) {
             appNameText.text = notification.appName
@@ -57,6 +62,23 @@ class NotificationAdapter : RecyclerView.Adapter<NotificationAdapter.Notificatio
                 amountText.text = notification.amount
             } else {
                 transactionDetails.visibility = View.GONE
+            }
+
+            // Mostrar indicador de no leído si corresponde
+            if (!notification.isRead) {
+                newIndicator.visibility = View.VISIBLE
+                itemView.setBackgroundResource(R.drawable.unread_notification_background)
+            } else {
+                newIndicator.visibility = View.GONE
+                itemView.setBackgroundResource(R.drawable.notification_background)
+            }
+
+            // Configurar clic en el elemento para marcar como leído
+            itemView.setOnClickListener {
+                // Marcar como leída al hacer clic si tiene un ID
+                if (notification.id.isNotEmpty()) {
+                    clickListener?.onNotificationClick(notification.id)
+                }
             }
         }
     }

@@ -71,5 +71,15 @@
                 android:textColor="#4CAF50"
                 android:textSize="16sp" />
         </LinearLayout>
+
+        <View
+            android:id="@+id/newIndicator"
+            android:layout_width="8dp"
+            android:layout_height="8dp"
+            android:layout_gravity="end|top"
+            android:layout_margin="8dp"
+            android:background="@drawable/unread_indicator"
+            android:visibility="gone" />
+
     </LinearLayout>
 </androidx.cardview.widget.CardView>

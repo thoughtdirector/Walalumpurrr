@@ -15,6 +15,8 @@ class SessionManager(context: Context) {
         const val KEY_USER_ID = "userId"
         const val KEY_USER_EMAIL = "userEmail"
         const val KEY_USER_ROLE = "userRole"
+        const val KEY_ADMIN_ID = "adminId"
+        const val KEY_LAST_SYNC_TIME = "lastNotificationSyncTime"
         private const val TAG = "SessionManager"
     }
 
@@ -30,6 +32,22 @@ class SessionManager(context: Context) {
             Log.d(TAG, "Sesión creada para usuario: $email")
         } catch (e: Exception) {
             Log.e(TAG, "Error al crear sesión: ${e.message}")
+        }
+    }
+
+    fun createEmployeeSession(userId: String, email: String, adminId: String) {
+        try {
+            editor.apply {
+                putBoolean(KEY_IS_LOGGED_IN, true)
+                putString(KEY_USER_ID, userId)
+                putString(KEY_USER_EMAIL, email)
+                putString(KEY_USER_ROLE, "employee")
+                putString(KEY_ADMIN_ID, adminId)
+                commit()
+            }
+            Log.d(TAG, "Sesión de empleado creada, Admin ID: $adminId")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al crear sesión de empleado: ${e.message}")
         }
     }
 
@@ -52,6 +70,7 @@ class SessionManager(context: Context) {
         user[KEY_USER_ID] = sharedPreferences.getString(KEY_USER_ID, null)
         user[KEY_USER_EMAIL] = sharedPreferences.getString(KEY_USER_EMAIL, null)
         user[KEY_USER_ROLE] = sharedPreferences.getString(KEY_USER_ROLE, null)
+        user[KEY_ADMIN_ID] = sharedPreferences.getString(KEY_ADMIN_ID, null)
         return user
     }
 
@@ -73,5 +92,20 @@ class SessionManager(context: Context) {
         } catch (e: Exception) {
             Log.e(TAG, "Error al cerrar sesión: ${e.message}")
         }
+    }
+
+    // Método para guardar el tiempo de última sincronización
+    fun saveLastNotificationSyncTime(time: Long) {
+        try {
+            editor.putLong(KEY_LAST_SYNC_TIME, time)
+            editor.apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error al guardar tiempo de sincronización: ${e.message}")
+        }
+    }
+
+    // Método para obtener el tiempo de última sincronización
+    fun getLastNotificationSyncTime(): Long {
+        return sharedPreferences.getLong(KEY_LAST_SYNC_TIME, 0)
     }
 }

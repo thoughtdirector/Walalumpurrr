@@ -8,8 +8,10 @@ import android.widget.AdapterView
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notificacionesapp.adapter.NotificationAdapter
 import com.example.notificacionesapp.databinding.FragmentHistoryBinding
+import com.example.notificacionesapp.firebase.NotificationSyncService
 import com.example.notificacionesapp.model.NotificationItem
 import com.example.notificacionesapp.util.NotificationHistoryManager
+import com.google.android.material.snackbar.Snackbar
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,8 +19,10 @@ import java.util.Locale
 class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
 
     private lateinit var notificationHistoryManager: NotificationHistoryManager
+    private lateinit var notificationSyncService: NotificationSyncService
     private lateinit var adapter: NotificationAdapter
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+    private var currentCategory = "Todas"
 
     override fun getViewBinding(
         inflater: LayoutInflater,
@@ -28,12 +32,21 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
     }
 
     override fun setupUI() {
-        // Inicializar el gestor de historial
+        // Inicializar los gestores
         notificationHistoryManager = NotificationHistoryManager(requireContext())
+        notificationSyncService = NotificationSyncService(requireContext())
 
         // Configurar RecyclerView
         binding.historyRecyclerView.layoutManager = LinearLayoutManager(requireContext())
-        adapter = NotificationAdapter()
+        adapter = NotificationAdapter(object : NotificationAdapter.NotificationClickListener {
+            override fun onNotificationClick(notificationId: String) {
+                // Marcar notificación como leída en Firebase
+                notificationSyncService.markNotificationAsRead(notificationId)
+
+                // Actualizar UI
+                startListeningForNotifications()
+            }
+        })
         binding.historyRecyclerView.adapter = adapter
 
         // Configurar el spinner
@@ -42,17 +55,28 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
         // Configurar botón de limpieza
         binding.clearHistoryButton.setOnClickListener {
             notificationHistoryManager.clearHistory()
-            updateNotificationsList()
+            startListeningForNotifications()
         }
 
-        // Cargar el historial
-        updateNotificationsList()
+        // Configurar botón de sincronización
+        binding.syncButton.setOnClickListener {
+            // Mostrar progreso
+            val snackbar = Snackbar.make(binding.root, "Sincronizando notificaciones...", Snackbar.LENGTH_SHORT)
+            snackbar.show()
+
+            // Forzar sincronización
+            startListeningForNotifications()
+        }
+
+        // Iniciar listener para notificaciones de Firebase
+        startListeningForNotifications()
     }
 
     private fun setupCategorySpinner() {
         binding.categorySpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                updateNotificationsList()
+                currentCategory = parent?.getItemAtPosition(position).toString()
+                startListeningForNotifications()
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {
@@ -61,17 +85,37 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
         }
     }
 
-    private fun updateNotificationsList() {
-        val selectedCategory = binding.categorySpinner.selectedItem.toString()
+    private fun startListeningForNotifications() {
+        // Mostrar indicador de carga
+        binding.progressBar.visibility = View.VISIBLE
 
-        val notifications = when (selectedCategory) {
-            "Todas" -> notificationHistoryManager.getNotifications()
-            "Nequi" -> notificationHistoryManager.getNotificationsByType("NEQUI")
-            "DaviPlata" -> notificationHistoryManager.getNotificationsByType("DAVIPLATA")
-            "Bancolombia" -> notificationHistoryManager.getNotificationsByType("BANCOLOMBIA")
-            "WhatsApp" -> notificationHistoryManager.getNotificationsByType("WHATSAPP")
-            else -> notificationHistoryManager.getNotifications()
+        // Para categorías específicas, usar el filtro por tipo
+        if (currentCategory != "Todas") {
+            val type = when (currentCategory) {
+                "Nequi" -> "NEQUI"
+                "DaviPlata" -> "DAVIPLATA"
+                "Bancolombia" -> "BANCOLOMBIA"
+                "WhatsApp" -> "WHATSAPP"
+                else -> ""
+            }
+
+            if (type.isNotEmpty()) {
+                notificationSyncService.getNotificationsByType(type) { notifications ->
+                    handleNotifications(notifications)
+                }
+                return
+            }
         }
+
+        // Para "Todas", obtener todas las notificaciones
+        notificationSyncService.startListeningForNotifications { notifications ->
+            handleNotifications(notifications)
+        }
+    }
+
+    private fun handleNotifications(notifications: List<NotificationItem>) {
+        // Ocultar indicador de carga
+        binding.progressBar.visibility = View.GONE
 
         if (notifications.isEmpty()) {
             binding.emptyHistoryText.visibility = View.VISIBLE
@@ -80,30 +124,20 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
             binding.emptyHistoryText.visibility = View.GONE
             binding.historyRecyclerView.visibility = View.VISIBLE
 
-            // Convertir Map<String, String> a NotificationItem
-            val notificationItems = notifications.map { notification ->
-                NotificationItem(
-                    appName = notification["appName"] ?: "Desconocido",
-                    title = notification["title"] ?: "",
-                    content = notification["content"] ?: "",
-                    timestamp = try {
-                        dateFormat.parse(notification["timestamp"] ?: "")?.time ?: System.currentTimeMillis()
-                    } catch (e: Exception) {
-                        System.currentTimeMillis()
-                    },
-                    sender = notification["sender"],
-                    amount = notification["amount"]
-                )
-            }
-
             // Actualizar el adaptador
-            adapter.updateData(notificationItems)
+            adapter.updateData(notifications)
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Actualizar la lista cada vez que el fragmento se retoma
-        updateNotificationsList()
+        // Reiniciar escucha cuando el fragmento se reanuda
+        startListeningForNotifications()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Detener escucha cuando el fragmento se pausa
+        notificationSyncService.stopListeningForNotifications()
     }
 }
