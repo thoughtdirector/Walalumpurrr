@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Toast
-import androidx.core.content.ContextCompat
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentProfileBinding
@@ -21,7 +20,7 @@ import com.google.firebase.ktx.Firebase
 class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
 
     private lateinit var auth: FirebaseAuth
-    private val database = Firebase.firestore
+    private val db = Firebase.firestore
     private var userDetails: Map<String, Any?> = HashMap()
 
     override fun getViewBinding(
@@ -54,10 +53,13 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
             binding.userEmailText.text = currentUser.email
 
             // Get additional data from Firestore
-            Firebase.firestore.collection("users").document(currentUser.uid)
+            db.collection("users").document(currentUser.uid)
                 .get()
                 .addOnSuccessListener { document ->
                     if (document != null && document.exists()) {
+                        // Guardar datos para uso posterior
+                        userDetails = document.data ?: HashMap()
+
                         // Show name
                         val firstName = document.getString("firstName") ?: ""
                         val lastName = document.getString("lastName") ?: ""
@@ -85,6 +87,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
                 }
         }
     }
+
     private fun roleToSpanish(role: String): String {
         return when (role.lowercase()) {
             "admin" -> "Administrador"
@@ -176,7 +179,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
                 "phone" to phone
             )
 
-            Firebase.firestore.collection("users").document(currentUser.uid)
+            db.collection("users").document(currentUser.uid)
                 .update(updates)
                 .addOnSuccessListener {
                     Toast.makeText(requireContext(), "Perfil actualizado correctamente", Toast.LENGTH_SHORT).show()
@@ -187,6 +190,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
                 }
         }
     }
+
     private fun showCreateEmployeeDialog() {
         val mainActivity = activity as? MainActivity
         mainActivity?.let {
@@ -242,31 +246,27 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
             // Buscar empleados asociados a este administrador
-            database.child("users").orderByChild("adminId").equalTo(currentUser.uid)
-                .addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
+            db.collection("users")
+                .whereEqualTo("adminId", currentUser.uid)
+                .get()
+                .addOnSuccessListener { documents ->
+                    if (documents.isEmpty) {
+                        Toast.makeText(requireContext(), "No tienes empleados registrados", Toast.LENGTH_SHORT).show()
+                    } else {
                         val employees = ArrayList<Map<String, Any>>()
-                        for (employeeSnapshot in snapshot.children) {
-                            val employeeData = employeeSnapshot.value as? Map<String, Any>
-                            if (employeeData != null) {
-                                // Añadir el ID del empleado a los datos
-                                val employeeWithId = HashMap(employeeData)
-                                employeeWithId["uid"] = employeeSnapshot.key ?: ""
-                                employees.add(employeeWithId)
-                            }
+                        for (document in documents) {
+                            val employeeData = document.data
+                            // Añadir el ID del empleado a los datos
+                            val employeeWithId = HashMap(employeeData)
+                            employeeWithId["uid"] = document.id
+                            employees.add(employeeWithId)
                         }
-
-                        if (employees.isEmpty()) {
-                            Toast.makeText(requireContext(), "No tienes empleados registrados", Toast.LENGTH_SHORT).show()
-                        } else {
-                            showEmployeesList(employees)
-                        }
+                        showEmployeesList(employees)
                     }
-
-                    override fun onCancelled(error: DatabaseError) {
-                        Toast.makeText(requireContext(), "Error al cargar empleados: ${error.message}", Toast.LENGTH_SHORT).show()
-                    }
-                })
+                }
+                .addOnFailureListener { e ->
+                    Toast.makeText(requireContext(), "Error al cargar empleados: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
         }
     }
 
@@ -357,12 +357,14 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
     }
 
     private fun updateEmployeeProfile(employeeId: String, firstName: String, lastName: String, phone: String) {
-        val updates = HashMap<String, Any>()
-        updates["firstName"] = firstName
-        updates["lastName"] = lastName
-        updates["phone"] = phone
+        val updates = hashMapOf<String, Any>(
+            "firstName" to firstName,
+            "lastName" to lastName,
+            "phone" to phone
+        )
 
-        database.child("users").child(employeeId).updateChildren(updates)
+        db.collection("users").document(employeeId)
+            .update(updates)
             .addOnSuccessListener {
                 Toast.makeText(requireContext(), "Empleado actualizado correctamente", Toast.LENGTH_SHORT).show()
             }
@@ -385,8 +387,9 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
     }
 
     private fun deleteEmployee(employeeId: String) {
-        // Eliminar de la base de datos
-        database.child("users").child(employeeId).removeValue()
+        // Eliminar de Firestore
+        db.collection("users").document(employeeId)
+            .delete()
             .addOnSuccessListener {
                 Toast.makeText(requireContext(), "Empleado eliminado correctamente", Toast.LENGTH_SHORT).show()
             }
@@ -504,8 +507,9 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
 
             user.reauthenticate(credential)
                 .addOnSuccessListener {
-                    // Eliminar datos de la base de datos
-                    database.child("users").child(user.uid).removeValue()
+                    // Eliminar datos de Firestore
+                    db.collection("users").document(user.uid)
+                        .delete()
                         .addOnSuccessListener {
                             // Eliminar cuenta de autenticación
                             user.delete()
