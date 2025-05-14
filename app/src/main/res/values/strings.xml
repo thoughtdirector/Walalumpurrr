@@ -39,5 +39,6 @@
     <string name="amount_limit_description">Solo leer notificaciones con montos menores al límite</string>
     <string name="amount_limit_enabled">Límite de monto activado: %d pesos</string>
     <string name="amount_limit_disabled">Límite de monto desactivado</string>
+    <string name="default_web_client_id">55580771174-d1dq71f2m8tabiduv69mggcn9jbpi5ng.apps.googleusercontent.com</string>
 
 </resources>

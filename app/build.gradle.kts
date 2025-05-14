@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id( "com.google.gms.google-services")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -65,6 +65,9 @@ dependencies {
     // Firebase Cloud Messaging
     implementation("com.google.firebase:firebase-messaging-ktx")
 
+    // Google Sign-In (añadido para autenticación con Google)
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
+}
     implementation("com.google.firebase:firebase-bom:32.7.0")
 // OkHttp para las llamadas FCM
     implementation("com.squareup.okhttp3:okhttp:4.11.0")

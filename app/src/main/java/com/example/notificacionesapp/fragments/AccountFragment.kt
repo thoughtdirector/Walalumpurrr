@@ -1,6 +1,8 @@
 package com.example.notificacionesapp.fragments
 
+import android.app.Activity
 import android.app.DatePickerDialog
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
@@ -8,11 +10,18 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import android.widget.ViewFlipper
+import androidx.activity.result.contract.ActivityResultContracts
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentAccountBinding
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInClient
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
+import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 import java.util.*
@@ -24,6 +33,27 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
     private var isLoginMode = true
     private val database = Firebase.database.reference
 
+    // Google Sign In
+    private lateinit var googleSignInClient: GoogleSignInClient
+
+    // Registro para manejar el resultado de la actividad de inicio de sesión de Google
+    private val signInLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+            try {
+                // Google Sign In fue exitoso, autenticar con Firebase
+                val account = task.getResult(ApiException::class.java)
+                firebaseAuthWithGoogle(account)
+            } catch (e: ApiException) {
+                // Google Sign In falló
+                Log.w(TAG, "Google sign in failed", e)
+                Toast.makeText(requireContext(), "Error en inicio de sesión con Google", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun getViewBinding(
         inflater: LayoutInflater,
         container: ViewGroup?
@@ -34,6 +64,14 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         auth = FirebaseAuth.getInstance()
+
+        // Configurar Google Sign In
+        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(getString(R.string.default_web_client_id))
+            .requestEmail()
+            .build()
+
+        googleSignInClient = GoogleSignIn.getClient(requireActivity(), gso)
     }
 
     override fun setupUI() {
@@ -60,6 +98,11 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
         // Date Picker
         binding.birthDateEditText.setOnClickListener {
             showDatePickerDialog()
+        }
+
+        // Añadir el botón de Google Sign In
+        binding.googleSignInButton.setOnClickListener {
+            signInWithGoogle()
         }
     }
 
@@ -236,6 +279,94 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                     Toast.makeText(requireContext(), "Correo electrónico de restablecimiento de contraseña enviado.", Toast.LENGTH_SHORT).show()
                 } else {
                     Toast.makeText(requireContext(), "Error al enviar correo electrónico de restablecimiento: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+    }
+
+    // Método para iniciar sesión con Google
+    private fun signInWithGoogle() {
+        val signInIntent = googleSignInClient.signInIntent
+        signInLauncher.launch(signInIntent)
+    }
+
+    // Método para autenticar con Firebase usando la cuenta de Google
+    private fun firebaseAuthWithGoogle(account: GoogleSignInAccount) {
+        Log.d(TAG, "firebaseAuthWithGoogle:" + account.id)
+
+        val credential = GoogleAuthProvider.getCredential(account.idToken, null)
+        auth.signInWithCredential(credential)
+            .addOnCompleteListener(requireActivity()) { task ->
+                if (task.isSuccessful) {
+                    // Inicio de sesión exitoso
+                    Log.d(TAG, "signInWithCredential:success")
+                    val user = auth.currentUser
+                    Toast.makeText(requireContext(), "Inicio de sesión con Google exitoso.", Toast.LENGTH_SHORT).show()
+
+                    // Verificar si es un usuario nuevo (primera vez que inicia sesión con Google)
+                    val isNewUser = task.result?.additionalUserInfo?.isNewUser ?: false
+
+                    user?.uid?.let { uid ->
+                        if (isNewUser) {
+                            // Si es un usuario nuevo, guardar datos básicos en la base de datos
+                            val userData = hashMapOf(
+                                "firstName" to (user.displayName?.split(" ")?.firstOrNull() ?: ""),
+                                "lastName" to (user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""),
+                                "email" to (user.email ?: ""),
+                                "phone" to (user.phoneNumber ?: ""),
+                                "role" to "user"
+                            )
+
+                            database.child("users").child(uid).setValue(userData)
+                                .addOnSuccessListener {
+                                    Log.d(TAG, "Google user data written to database")
+
+                                    // Crear sesión local con SessionManager
+                                    val mainActivity = activity as? MainActivity
+                                    mainActivity?.createUserSession(uid, user.email ?: "", "user")
+
+                                    // Cargar fragmento Home
+                                    mainActivity?.homeFragment = HomeFragment()
+                                    mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                    mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e(TAG, "Error writing Google user data to database", e)
+                                    Toast.makeText(requireContext(), "Error al guardar los datos del usuario.", Toast.LENGTH_SHORT).show()
+                                }
+                        } else {
+                            // Si es un usuario existente, obtener su rol
+                            database.child("users").child(uid).child("role").get()
+                                .addOnSuccessListener { snapshot ->
+                                    val role = snapshot.value as? String ?: "user"
+
+                                    // Crear sesión local con SessionManager
+                                    val mainActivity = activity as? MainActivity
+                                    mainActivity?.createUserSession(uid, user.email ?: "", role)
+
+                                    // Cargar fragmento Home
+                                    mainActivity?.homeFragment = HomeFragment()
+                                    mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                    mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
+                                }
+                                .addOnFailureListener { e ->
+                                    Log.e(TAG, "Error obteniendo rol de usuario Google: ${e.message}")
+
+                                    // Si falla, usar un rol predeterminado
+                                    val mainActivity = activity as? MainActivity
+                                    mainActivity?.createUserSession(uid, user.email ?: "", "user")
+
+                                    // Cargar fragmento Home
+                                    mainActivity?.homeFragment = HomeFragment()
+                                    mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                    mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
+                                }
+                        }
+                    }
+                } else {
+                    // Si el inicio de sesión falla
+                    Log.w(TAG, "signInWithCredential:failure", task.exception)
+                    Toast.makeText(requireContext(), "Error de autenticación con Google: ${task.exception?.message}",
+                        Toast.LENGTH_SHORT).show()
                 }
             }
     }
