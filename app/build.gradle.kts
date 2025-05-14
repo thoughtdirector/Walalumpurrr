@@ -67,8 +67,6 @@ dependencies {
 
     // Google Sign-In (añadido para autenticación con Google)
     implementation("com.google.android.gms:play-services-auth:20.7.0")
-}
-    implementation("com.google.firebase:firebase-bom:32.7.0")
 // OkHttp para las llamadas FCM
     implementation("com.squareup.okhttp3:okhttp:4.11.0")
 
