@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Estilo para el switch -->
+    <style name="SwitchTheme" parent="Theme.AppCompat.Light">
+        <!-- Color del track cuando está activado -->
+        <item name="colorControlActivated">#00BCD4</item>
+        <!-- Color del track cuando está desactivado -->
+        <item name="colorSwitchThumbNormal">#FFFFFF</item>
+        <item name="android:colorForeground">#42445A</item>
+    </style>
+
+    <!-- Estilo para TimePicker moderno -->
+    <style name="ModernTimePicker" parent="Theme.AppCompat.DayNight.Dialog">
+        <item name="android:timePickerMode">spinner</item>
+        <item name="android:textColorPrimary">#FFFFFF</item>
+        <item name="android:textColorSecondary">#B4BDD1</item>
+        <item name="colorControlNormal">#00BCD4</item>
+        <item name="colorControlActivated">#00BCD4</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:numbersTextColor">#FFFFFF</item>
+        <item name="android:numbersBackgroundColor">#232A42</item>
+    </style>
+</resources>
