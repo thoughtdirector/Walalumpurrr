@@ -558,16 +558,15 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         birthDate: String
     ) {
         val password = generateRandomPassword()
+        val currentAdminUid = auth.currentUser?.uid
 
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     Log.d(TAG, "createEmployeeAccount:success")
                     val user = auth.currentUser
-                    val adminUid = auth.currentUser?.uid
 
                     user?.uid?.let { employeeUid ->
-                        // Create user for Firestore
                         val firestoreUser = FirestoreUser(
                             uid = employeeUid,
                             firstName = firstName,
@@ -576,10 +575,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                             birthDate = birthDate,
                             email = email,
                             role = "employee",
-                            adminId = adminUid
+                            adminId = currentAdminUid
                         )
-
-                        // Save to Firestore
                         Firebase.firestore.collection("users")
                             .document(employeeUid)
                             .set(firestoreUser)
