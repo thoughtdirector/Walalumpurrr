@@ -325,7 +325,7 @@
             android:layout_width="0dp"
             android:layout_height="60dp"
             android:layout_marginTop="20dp"
-            android:backgroundTint="#FF7F50"
+            android:backgroundTint="#FF5722"
             android:fontFamily="sans-serif-medium"
             android:text="PROBAR SERVICIO DE VOZ"
             android:textSize="16sp"
