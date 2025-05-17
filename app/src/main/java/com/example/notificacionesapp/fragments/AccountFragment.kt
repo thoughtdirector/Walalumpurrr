@@ -14,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentAccountBinding
+import com.example.notificacionesapp.model.FirestoreUser
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
@@ -22,7 +23,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.database.ktx.database
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import java.util.*
 
@@ -31,7 +32,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
     private lateinit var auth: FirebaseAuth
     private lateinit var viewFlipper: ViewFlipper
     private var isLoginMode = true
-    private val database = Firebase.database.reference
+    private val db = Firebase.firestore
 
     // Google Sign In
     private lateinit var googleSignInClient: GoogleSignInClient
@@ -144,7 +145,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
         val lastName = binding.lastNameEditText.text.toString()
         val phone = binding.phoneEditText.text.toString()
         val birthDate = binding.birthDateEditText.text.toString()
-        val role = "admin"
+        val role = "admin" // First user is admin
 
         if (email.isEmpty() || password.isEmpty() || firstName.isEmpty() || lastName.isEmpty() || phone.isEmpty() || birthDate.isEmpty()) {
             Toast.makeText(requireContext(), "Todos los campos son requeridos", Toast.LENGTH_SHORT).show()
@@ -159,28 +160,35 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                     Toast.makeText(requireContext(), "Registro exitoso.", Toast.LENGTH_SHORT).show()
 
                     user?.uid?.let { uid ->
-                        val userData = hashMapOf(
-                            "firstName" to firstName,
-                            "lastName" to lastName,
-                            "phone" to phone,
-                            "birthDate" to birthDate,
-                            "role" to role
+                        // Create user for Firestore
+                        val firestoreUser = FirestoreUser(
+                            uid = uid,
+                            firstName = firstName,
+                            lastName = lastName,
+                            phone = phone,
+                            birthDate = birthDate,
+                            email = email,
+                            role = role
                         )
-                        database.child("users").child(uid).setValue(userData)
-                            .addOnSuccessListener {
-                                Log.d(TAG, "User data written to database")
 
-                                // Crear sesión local con SessionManager
+                        // Save to Firestore
+                        db.collection("users")
+                            .document(uid)
+                            .set(firestoreUser)
+                            .addOnSuccessListener {
+                                Log.d(TAG, "User data written to Firestore")
+
+                                // Create session
                                 val mainActivity = activity as? MainActivity
                                 mainActivity?.createUserSession(uid, email, role)
 
-                                // Cargar fragmento Home
+                                // Load Home fragment
                                 mainActivity?.homeFragment = HomeFragment()
                                 mainActivity?.loadFragment(mainActivity.homeFragment!!)
                                 mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                             }
                             .addOnFailureListener { e ->
-                                Log.e(TAG, "Error writing user data to database", e)
+                                Log.e(TAG, "Error writing user data to Firestore", e)
                                 Toast.makeText(requireContext(), "Error al guardar los datos del usuario.", Toast.LENGTH_SHORT).show()
                             }
                     }
@@ -219,11 +227,12 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                     val user = auth.currentUser
                     Toast.makeText(requireContext(), "Inicio de sesión exitoso.", Toast.LENGTH_SHORT).show()
 
-                    // Obtener el rol del usuario de Firebase y guardar sesión
+                    // Obtener el rol del usuario de Firestore y guardar sesión
                     user?.uid?.let { uid ->
-                        database.child("users").child(uid).child("role").get()
-                            .addOnSuccessListener { snapshot ->
-                                val role = snapshot.value as? String ?: "user"
+                        db.collection("users").document(uid)
+                            .get()
+                            .addOnSuccessListener { document ->
+                                val role = document.getString("role") ?: "user"
 
                                 // Crear sesión local con SessionManager
                                 val mainActivity = activity as? MainActivity
@@ -307,18 +316,20 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                     user?.uid?.let { uid ->
                         if (isNewUser) {
-                            // Si es un usuario nuevo, guardar datos básicos en la base de datos
-                            val userData = hashMapOf(
-                                "firstName" to (user.displayName?.split(" ")?.firstOrNull() ?: ""),
-                                "lastName" to (user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""),
-                                "email" to (user.email ?: ""),
-                                "phone" to (user.phoneNumber ?: ""),
-                                "role" to "user"
+                            // Si es un usuario nuevo, guardar datos básicos en Firestore
+                            val firestoreUser = FirestoreUser(
+                                uid = uid,
+                                firstName = (user.displayName?.split(" ")?.firstOrNull() ?: ""),
+                                lastName = (user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""),
+                                email = (user.email ?: ""),
+                                phone = (user.phoneNumber ?: ""),
+                                role = "user"
                             )
 
-                            database.child("users").child(uid).setValue(userData)
+                            db.collection("users").document(uid)
+                                .set(firestoreUser)
                                 .addOnSuccessListener {
-                                    Log.d(TAG, "Google user data written to database")
+                                    Log.d(TAG, "Google user data written to Firestore")
 
                                     // Crear sesión local con SessionManager
                                     val mainActivity = activity as? MainActivity
@@ -330,14 +341,15 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                                     mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                                 }
                                 .addOnFailureListener { e ->
-                                    Log.e(TAG, "Error writing Google user data to database", e)
+                                    Log.e(TAG, "Error writing Google user data to Firestore", e)
                                     Toast.makeText(requireContext(), "Error al guardar los datos del usuario.", Toast.LENGTH_SHORT).show()
                                 }
                         } else {
                             // Si es un usuario existente, obtener su rol
-                            database.child("users").child(uid).child("role").get()
-                                .addOnSuccessListener { snapshot ->
-                                    val role = snapshot.value as? String ?: "user"
+                            db.collection("users").document(uid)
+                                .get()
+                                .addOnSuccessListener { document ->
+                                    val role = document.getString("role") ?: "user"
 
                                     // Crear sesión local con SessionManager
                                     val mainActivity = activity as? MainActivity

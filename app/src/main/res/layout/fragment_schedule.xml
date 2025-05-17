@@ -4,37 +4,38 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@drawable/gradient_background_modern"
     android:fillViewport="true"
     tools:context=".fragments.ScheduleFragment">
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:paddingHorizontal="16dp"
         android:paddingBottom="24dp">
 
         <TextView
             android:id="@+id/scheduleTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:fontFamily="sans-serif-bold"
+            android:layout_marginTop="32dp"
+            android:fontFamily="sans-serif-medium"
             android:text="Programar Horarios"
-            android:textColor="#FFFFFF"
-            android:textSize="24sp"
-            app:layout_constraintEnd_toEndOf="parent"
+            android:textColor="@color/white"
+            android:textSize="28sp"
+            android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <!-- Card for schedule settings -->
         <androidx.cardview.widget.CardView
             android:id="@+id/scheduleCard"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginEnd="20dp"
-            app:cardBackgroundColor="#2D3142"
+            android:layout_marginTop="24dp"
+            app:cardBackgroundColor="#2D3855"
             app:cardCornerRadius="16dp"
-            app:cardElevation="8dp"
+            app:cardElevation="4dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/scheduleTitle">
@@ -43,61 +44,85 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
 
-                <com.google.android.material.switchmaterial.SwitchMaterial
-                    android:id="@+id/scheduleSwitch"
+                <!-- Título y switch de activación -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif-medium"
-                    android:text="Activar horario programado"
-                    android:textColor="#E8E9EB"
-                    android:textSize="16sp" />
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
 
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Activar horario programado"
+                        android:textColor="@color/white"
+                        android:textSize="18sp" />
+
+                    <com.google.android.material.switchmaterial.SwitchMaterial
+                        android:id="@+id/scheduleSwitch"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        android:theme="@style/SwitchTheme"/>
+                </LinearLayout>
+
+                <!-- Hora de inicio -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
                     android:fontFamily="sans-serif-medium"
                     android:text="Hora de inicio"
-                    android:textColor="#E8E9EB"
-                    android:textSize="16sp" />
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:layout_marginTop="24dp" />
 
+                <!-- TimePicker para la hora de inicio (con estilo moderno) -->
                 <TimePicker
                     android:id="@+id/startTimePicker"
                     android:layout_width="match_parent"
                     android:layout_height="120dp"
+                    android:timePickerMode="spinner"
                     android:layout_marginTop="8dp"
-                    android:timePickerMode="spinner" />
+                    android:theme="@style/ModernTimePicker"
+                    android:background="#232A42"
+                    android:layout_marginHorizontal="10dp"/>
 
+                <!-- Hora de finalización -->
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
                     android:fontFamily="sans-serif-medium"
                     android:text="Hora de finalización"
-                    android:textColor="#E8E9EB"
-                    android:textSize="16sp" />
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:layout_marginTop="24dp" />
 
+                <!-- TimePicker para la hora de finalización (con estilo moderno) -->
                 <TimePicker
                     android:id="@+id/endTimePicker"
                     android:layout_width="match_parent"
                     android:layout_height="120dp"
+                    android:timePickerMode="spinner"
                     android:layout_marginTop="8dp"
-                    android:timePickerMode="spinner" />
+                    android:theme="@style/ModernTimePicker"
+                    android:background="#232A42"
+                    android:layout_marginHorizontal="10dp"/>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- Card for days of week -->
         <androidx.cardview.widget.CardView
             android:id="@+id/daysCard"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:layout_marginStart="20dp"
             android:layout_marginTop="16dp"
-            android:layout_marginEnd="20dp"
-            app:cardBackgroundColor="#4F5D75"
+            app:cardBackgroundColor="#2D3855"
             app:cardCornerRadius="16dp"
-            app:cardElevation="8dp"
+            app:cardElevation="4dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/scheduleCard">
@@ -106,106 +131,217 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:padding="20dp">
 
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:fontFamily="sans-serif-medium"
                     android:text="Días de la semana"
-                    android:textColor="#E8E9EB"
-                    android:textSize="16sp" />
+                    android:textColor="@color/white"
+                    android:textSize="18sp" />
 
-                <CheckBox
-                    android:id="@+id/mondayCheckBox"
+                <!-- Days selection with modern design -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:fontFamily="sans-serif"
-                    android:text="Lunes"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="true" />
+                    android:orientation="vertical"
+                    android:layout_marginTop="16dp">
 
-                <CheckBox
-                    android:id="@+id/tuesdayCheckBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:text="Martes"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="true" />
+                    <!-- Lunes -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
 
-                <CheckBox
-                    android:id="@+id/wednesdayCheckBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:text="Miércoles"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="true" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Lunes"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
 
-                <CheckBox
-                    android:id="@+id/thursdayCheckBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:text="Jueves"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="true" />
+                        <CheckBox
+                            android:id="@+id/mondayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
 
-                <CheckBox
-                    android:id="@+id/fridayCheckBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:text="Viernes"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="true" />
+                    <!-- Martes -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
 
-                <CheckBox
-                    android:id="@+id/saturdayCheckBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:text="Sábado"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="false" />
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Martes"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
 
-                <CheckBox
-                    android:id="@+id/sundayCheckBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:fontFamily="sans-serif"
-                    android:text="Domingo"
-                    android:textColor="#E8E9EB"
-                    android:buttonTint="#EF8354"
-                    android:checked="false" />
+                        <CheckBox
+                            android:id="@+id/tuesdayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
+
+                    <!-- Miércoles -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Miércoles"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
+
+                        <CheckBox
+                            android:id="@+id/wednesdayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
+
+                    <!-- Jueves -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Jueves"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
+
+                        <CheckBox
+                            android:id="@+id/thursdayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
+
+                    <!-- Viernes -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Viernes"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
+
+                        <CheckBox
+                            android:id="@+id/fridayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="true"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
+
+                    <!-- Sábado -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Sábado"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
+
+                        <CheckBox
+                            android:id="@+id/saturdayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
+
+                    <!-- Domingo -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingVertical="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Domingo"
+                            android:textColor="@color/white"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif"/>
+
+                        <CheckBox
+                            android:id="@+id/sundayCheckBox"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:checked="false"
+                            android:buttonTint="#00BCD4"/>
+                    </LinearLayout>
+                </LinearLayout>
             </LinearLayout>
         </androidx.cardview.widget.CardView>
 
+        <!-- Botón de guardar -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/saveButton"
             android:layout_width="0dp"
             android:layout_height="60dp"
-            android:layout_marginStart="40dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginEnd="40dp"
-            android:layout_marginBottom="20dp"
-            android:backgroundTint="#EF8354"
+            android:layout_marginTop="24dp"
+            android:backgroundTint="#FF5722"
             android:fontFamily="sans-serif-medium"
-            android:text="Guardar configuración"
+            android:text="GUARDAR CONFIGURACIÓN"
             android:textSize="16sp"
-            app:cornerRadius="30dp"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:cornerRadius="12dp"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/daysCard" />
+            app:layout_constraintTop_toBottomOf="@+id/daysCard"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:layout_marginBottom="24dp"/>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>

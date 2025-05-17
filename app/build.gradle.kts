@@ -57,13 +57,9 @@ dependencies {
 
     implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
     // Firebase Authentication
-    implementation("com.google.firebase:firebase-auth-ktx")
-
-    // Firebase Realtime Database
-    implementation("com.google.firebase:firebase-database-ktx")
-
-    // Firebase Cloud Messaging
-    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx:24.10.0")
+    implementation("com.google.firebase:firebase-auth-ktx:22.3.0")
+    implementation("com.google.firebase:firebase-messaging-ktx:23.3.1")
 
     // Google Sign-In (añadido para autenticación con Google)
     implementation("com.google.android.gms:play-services-auth:20.7.0")

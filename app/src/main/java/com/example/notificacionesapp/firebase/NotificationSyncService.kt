@@ -11,21 +11,20 @@ import androidx.core.app.NotificationCompat
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.R
 import com.example.notificacionesapp.SessionManager
-import com.example.notificacionesapp.model.FirebaseNotification
+import com.example.notificacionesapp.model.FirestoreNotification
 import com.example.notificacionesapp.model.NotificationItem
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.DatabaseReference
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.database.ktx.database
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import java.util.UUID
 
 class NotificationSyncService(private val context: Context) {
 
-    private val database: DatabaseReference = Firebase.database.reference
+    private val db = Firebase.firestore
     private val sessionManager = SessionManager(context)
-    private var notificationsListener: ValueEventListener? = null
+    private var listenerRegistration: ListenerRegistration? = null
     private val notificationDatabase = NotificationDatabase()
     private val adminNotificationService = AdminNotificationService()
 
@@ -34,7 +33,7 @@ class NotificationSyncService(private val context: Context) {
         private const val NOTIFICATION_CHANNEL_ID = "sync_notification_channel"
     }
 
-    // Guardar una notificación en Firebase
+    // Guardar una notificación en Firestore
     fun saveNotification(
         packageName: String,
         appName: String,
@@ -45,22 +44,34 @@ class NotificationSyncService(private val context: Context) {
         sender: String = ""
     ) {
         try {
-            val userId = sessionManager.getUserId() ?: return
-            val role = sessionManager.getUserRole() ?: "user"
-
-            // Determinar el adminId
-            val adminId = if (role == "admin") {
-                userId // El usuario actual es admin
-            } else {
-                // Buscar el adminId del empleado desde preferencias
-                sessionManager.getUserDetails()["adminId"] ?: return
+            val userId = sessionManager.getUserId()
+            if (userId == null) {
+                Log.e(TAG, "Failed to save notification: No user ID found in session")
+                return
             }
 
-            // Crear objeto de notificación
+            val role = sessionManager.getUserRole() ?: "user"
+            Log.d(TAG, "Saving notification as role: $role, userId: $userId")
+
+            // Determine the adminId
+            val adminId = if (role == "admin") {
+                userId // Current user is admin
+            } else {
+                // Get adminId from preferences
+                val adminIdFromPrefs = sessionManager.getUserDetails()["adminId"]
+                if (adminIdFromPrefs == null) {
+                    Log.e(TAG, "Failed to save notification: Employee has no adminId")
+                    return
+                }
+                adminIdFromPrefs
+            }
+
+            Log.d(TAG, "Using adminId: $adminId for notification")
+
+            // Create notification object
             val notificationId = UUID.randomUUID().toString()
-            val notification = FirebaseNotification(
+            val notification = FirestoreNotification(
                 id = notificationId,
-                timestamp = System.currentTimeMillis(),
                 adminId = adminId,
                 packageName = packageName,
                 appName = appName,
@@ -69,30 +80,34 @@ class NotificationSyncService(private val context: Context) {
                 type = type,
                 amount = amount,
                 sender = sender,
-                read = false
+                read = false,
+                timestamp = Timestamp.now()
             )
 
-            // Guardar usando NotificationDatabase
+            // Save using NotificationDatabase
             notificationDatabase.saveNotification(
                 notification = notification,
                 onSuccess = {
-                    Log.d(TAG, "Notificación guardada correctamente en Firebase")
+                    Log.d(TAG, "Notification saved successfully to Firestore with id: ${notification.id}")
 
-                    // Notificar a empleados si es administrador
+                    // Notify employees if administrator
                     if (role == "admin") {
+                        Log.d(TAG, "Attempting to notify employees as admin")
                         adminNotificationService.notifyEmployees(adminId, notification)
+                    } else {
+                        Log.d(TAG, "Skipping employee notification as user is not admin")
                     }
 
-                    // Limpiar notificaciones antiguas (más de 30 días)
+                    // Clean up old notifications (more than 30 days)
                     val thirtyDaysAgo = System.currentTimeMillis() - (30 * 24 * 60 * 60 * 1000)
                     notificationDatabase.cleanupOldNotifications(adminId, thirtyDaysAgo)
                 },
                 onError = { e ->
-                    Log.e(TAG, "Error al guardar notificación en Firebase: ${e.message}")
+                    Log.e(TAG, "Error saving notification to Firestore: ${e.message}")
                 }
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Error en saveNotification: ${e.message}")
+            Log.e(TAG, "Error in saveNotification: ${e.message}", e)
         }
     }
 
@@ -111,14 +126,15 @@ class NotificationSyncService(private val context: Context) {
             }
 
             // Obtener notificaciones usando NotificationDatabase
-            notificationDatabase.getLatestNotifications(adminId) { firebaseNotifications ->
+            notificationDatabase.getLatestNotifications(adminId) { firestoreNotifications ->
                 val notifications = mutableListOf<NotificationItem>()
                 var hasNewNotifications = false
                 val lastSyncTime = sessionManager.getLastNotificationSyncTime()
 
-                for (fbNotification in firebaseNotifications) {
+                for (fbNotification in firestoreNotifications) {
                     // Verificar si es una notificación nueva
-                    if (fbNotification.timestamp > lastSyncTime && !fbNotification.read) {
+                    val notificationTimestamp = fbNotification.timestamp?.toDate()?.time ?: 0
+                    if (notificationTimestamp > lastSyncTime && !fbNotification.read) {
                         hasNewNotifications = true
                     }
 
@@ -126,7 +142,7 @@ class NotificationSyncService(private val context: Context) {
                         appName = fbNotification.appName,
                         title = fbNotification.title,
                         content = fbNotification.content,
-                        timestamp = fbNotification.timestamp,
+                        timestamp = notificationTimestamp,
                         sender = fbNotification.sender,
                         amount = fbNotification.amount,
                         id = fbNotification.id,
@@ -149,7 +165,7 @@ class NotificationSyncService(private val context: Context) {
                 }
             }
 
-            // También configurar un ValueEventListener para actualizaciones en tiempo real
+            // También configurar un SnapshotListener para actualizaciones en tiempo real
             setupRealtimeListener(adminId, onNotificationReceived)
 
         } catch (e: Exception) {
@@ -160,22 +176,9 @@ class NotificationSyncService(private val context: Context) {
     // Detener la escucha de notificaciones
     fun stopListeningForNotifications() {
         try {
-            notificationsListener?.let { listener ->
-                val userId = sessionManager.getUserId() ?: return
-                val role = sessionManager.getUserRole() ?: "user"
-
-                val adminId = if (role == "admin") {
-                    userId
-                } else {
-                    sessionManager.getUserDetails()["adminId"] ?: return
-                }
-
-                database.child("notifications").child(adminId)
-                    .removeEventListener(listener)
-
-                notificationsListener = null
-                Log.d(TAG, "Listener de notificaciones detenido")
-            }
+            listenerRegistration?.remove()
+            listenerRegistration = null
+            Log.d(TAG, "Listener de notificaciones detenido")
         } catch (e: Exception) {
             Log.e(TAG, "Error en stopListeningForNotifications: ${e.message}")
         }
@@ -266,18 +269,27 @@ class NotificationSyncService(private val context: Context) {
             stopListeningForNotifications()
 
             // Crear nuevo listener
-            notificationsListener = database.child("notifications").child(adminId)
-                .addValueEventListener(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
+            listenerRegistration = db.collection("notifications")
+                .whereEqualTo("adminId", adminId)
+                .orderBy("timestamp", Query.Direction.DESCENDING)
+                .limit(50)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null) {
+                        Log.e(TAG, "Error en listener de notificaciones: ${error.message}")
+                        return@addSnapshotListener
+                    }
+
+                    if (snapshot != null) {
                         val notifications = mutableListOf<NotificationItem>()
                         var hasNewNotifications = false
                         val lastSyncTime = sessionManager.getLastNotificationSyncTime()
 
-                        for (notificationSnapshot in snapshot.children) {
-                            val firebaseNotification = notificationSnapshot.getValue(FirebaseNotification::class.java)
-                            firebaseNotification?.let {
+                        for (document in snapshot.documents) {
+                            val firestoreNotification = document.toObject(FirestoreNotification::class.java)
+                            firestoreNotification?.let {
                                 // Verificar si es una notificación nueva
-                                if (it.timestamp > lastSyncTime && !it.read) {
+                                val notificationTimestamp = it.timestamp?.toDate()?.time ?: 0
+                                if (notificationTimestamp > lastSyncTime && !it.read) {
                                     hasNewNotifications = true
                                 }
 
@@ -285,7 +297,7 @@ class NotificationSyncService(private val context: Context) {
                                     appName = it.appName,
                                     title = it.title,
                                     content = it.content,
-                                    timestamp = it.timestamp,
+                                    timestamp = notificationTimestamp,
                                     sender = it.sender,
                                     amount = it.amount,
                                     id = it.id,
@@ -311,11 +323,7 @@ class NotificationSyncService(private val context: Context) {
                             showNewNotificationsAlert(notifications.first())
                         }
                     }
-
-                    override fun onCancelled(error: DatabaseError) {
-                        Log.e(TAG, "Error en listener de notificaciones: ${error.message}")
-                    }
-                })
+                }
 
             Log.d(TAG, "Listener en tiempo real configurado para notificaciones")
         } catch (e: Exception) {
@@ -337,13 +345,13 @@ class NotificationSyncService(private val context: Context) {
             }
 
             // Obtener notificaciones del tipo específico
-            notificationDatabase.getNotificationsByType(adminId, type) { firebaseNotifications ->
-                val notifications = firebaseNotifications.map { fbNotification ->
+            notificationDatabase.getNotificationsByType(adminId, type) { firestoreNotifications ->
+                val notifications = firestoreNotifications.map { fbNotification ->
                     NotificationItem(
                         appName = fbNotification.appName,
                         title = fbNotification.title,
                         content = fbNotification.content,
-                        timestamp = fbNotification.timestamp,
+                        timestamp = fbNotification.timestamp?.toDate()?.time ?: 0,
                         sender = fbNotification.sender,
                         amount = fbNotification.amount,
                         id = fbNotification.id,
@@ -373,40 +381,38 @@ class NotificationSyncService(private val context: Context) {
             }
 
             // Obtener todas las notificaciones no leídas
-            database.child("notifications").child(adminId)
-                .orderByChild("read")
-                .equalTo(false)
-                .addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        val updates = mutableMapOf<String, Any>()
+            db.collection("notifications")
+                .whereEqualTo("adminId", adminId)
+                .whereEqualTo("read", false)
+                .get()
+                .addOnSuccessListener { documents ->
+                    val batch = db.batch()
 
-                        // Preparar actualizaciones en lote
-                        for (notificationSnapshot in snapshot.children) {
-                            updates["notifications/$adminId/${notificationSnapshot.key}/read"] = true
-                        }
-
-                        // Aplicar actualizaciones en lote si hay cambios
-                        if (updates.isNotEmpty()) {
-                            database.updateChildren(updates)
-                                .addOnSuccessListener {
-                                    Log.d(TAG, "Todas las notificaciones marcadas como leídas")
-                                    onComplete()
-                                }
-                                .addOnFailureListener { e ->
-                                    Log.e(TAG, "Error al marcar notificaciones como leídas: ${e.message}")
-                                    onComplete()
-                                }
-                        } else {
-                            // No hay notificaciones para actualizar
-                            onComplete()
-                        }
+                    // Preparar actualizaciones en lote
+                    for (document in documents) {
+                        batch.update(document.reference, "read", true)
                     }
 
-                    override fun onCancelled(error: DatabaseError) {
-                        Log.e(TAG, "Error al buscar notificaciones no leídas: ${error.message}")
+                    // Aplicar actualizaciones en lote si hay documentos
+                    if (!documents.isEmpty) {
+                        batch.commit()
+                            .addOnSuccessListener {
+                                Log.d(TAG, "Todas las notificaciones marcadas como leídas")
+                                onComplete()
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Error al marcar notificaciones como leídas: ${e.message}")
+                                onComplete()
+                            }
+                    } else {
+                        // No hay notificaciones para actualizar
                         onComplete()
                     }
-                })
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error al buscar notificaciones no leídas: ${e.message}")
+                    onComplete()
+                }
         } catch (e: Exception) {
             Log.e(TAG, "Error en markAllNotificationsAsRead: ${e.message}")
             onComplete()
@@ -416,7 +422,7 @@ class NotificationSyncService(private val context: Context) {
     // Eliminar una notificación específica
     fun deleteNotification(notificationId: String, onComplete: (Boolean) -> Unit) {
         try {
-            val userId = sessionManager.getUserId() ?: return
+            val userId = sessionManager.getUserId() ?: return onComplete(false)
             val role = sessionManager.getUserRole() ?: "user"
 
             // Solo los administradores pueden eliminar notificaciones
@@ -427,8 +433,8 @@ class NotificationSyncService(private val context: Context) {
             }
 
             // Eliminar la notificación
-            database.child("notifications").child(userId).child(notificationId)
-                .removeValue()
+            db.collection("notifications").document(notificationId)
+                .delete()
                 .addOnSuccessListener {
                     Log.d(TAG, "Notificación eliminada correctamente")
                     onComplete(true)
@@ -450,7 +456,7 @@ class NotificationSyncService(private val context: Context) {
         onComplete: (Boolean) -> Unit
     ) {
         try {
-            val userId = sessionManager.getUserId() ?: return
+            val userId = sessionManager.getUserId() ?: return onComplete(false)
             val role = sessionManager.getUserRole() ?: "user"
 
             // Solo los administradores pueden enviar notificaciones manuales
@@ -462,9 +468,8 @@ class NotificationSyncService(private val context: Context) {
 
             // Crear notificación manual
             val notificationId = UUID.randomUUID().toString()
-            val notification = FirebaseNotification(
+            val notification = FirestoreNotification(
                 id = notificationId,
-                timestamp = System.currentTimeMillis(),
                 adminId = userId,
                 packageName = "manual_notification",
                 appName = "Notificación Manual",
@@ -473,7 +478,8 @@ class NotificationSyncService(private val context: Context) {
                 type = "MANUAL",
                 amount = "",
                 sender = "",
-                read = false
+                read = false,
+                timestamp = Timestamp.now()
             )
 
             // Guardar la notificación

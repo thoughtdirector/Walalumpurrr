@@ -19,16 +19,13 @@ import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentManageEmployeesBinding
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.database.ktx.database
+import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
 class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
 
     private lateinit var auth: FirebaseAuth
-    private val database = Firebase.database.reference
+    private val database = Firebase.firestore
     private lateinit var employeesAdapter: EmployeesAdapter
     private val employeesList = ArrayList<EmployeeModel>()
 
@@ -72,55 +69,50 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
         loadEmployees()
     }
 
+    // Replace the loadEmployees method
     private fun loadEmployees() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
             binding.progressBar.visibility = View.VISIBLE
             binding.noEmployeesText.visibility = View.GONE
 
-            // Buscar empleados asociados a este administrador
-            database.child("users").orderByChild("adminId").equalTo(currentUser.uid)
-                .addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        employeesList.clear()
+            // Find employees from Firestore
+            Firebase.firestore.collection("users")
+                .whereEqualTo("adminId", currentUser.uid)
+                .get()
+                .addOnSuccessListener { documents ->
+                    employeesList.clear()
 
-                        for (employeeSnapshot in snapshot.children) {
-                            val employeeData = employeeSnapshot.value as? Map<String, Any>
-                            if (employeeData != null) {
-                                val employee = EmployeeModel(
-                                    uid = employeeSnapshot.key ?: "",
-                                    firstName = employeeData["firstName"] as? String ?: "",
-                                    lastName = employeeData["lastName"] as? String ?: "",
-                                    email = employeeData["email"] as? String ?: "",
-                                    phone = employeeData["phone"] as? String ?: "",
-                                    birthDate = employeeData["birthDate"] as? String ?: ""
-                                )
-
-                                employeesList.add(employee)
-                            }
-                        }
-
-                        employeesAdapter.notifyDataSetChanged()
-                        binding.progressBar.visibility = View.GONE
-
-                        // Mostrar mensaje si no hay empleados
-                        if (employeesList.isEmpty()) {
-                            binding.noEmployeesText.visibility = View.VISIBLE
-                        } else {
-                            binding.noEmployeesText.visibility = View.GONE
-                        }
+                    for (document in documents) {
+                        val employee = EmployeeModel(
+                            uid = document.id,
+                            firstName = document.getString("firstName") ?: "",
+                            lastName = document.getString("lastName") ?: "",
+                            email = document.getString("email") ?: "",
+                            phone = document.getString("phone") ?: "",
+                            birthDate = document.getString("birthDate") ?: ""
+                        )
+                        employeesList.add(employee)
                     }
 
-                    override fun onCancelled(error: DatabaseError) {
-                        binding.progressBar.visibility = View.GONE
+                    employeesAdapter.notifyDataSetChanged()
+                    binding.progressBar.visibility = View.GONE
+
+                    // Show message if no employees
+                    if (employeesList.isEmpty()) {
                         binding.noEmployeesText.visibility = View.VISIBLE
-                        Toast.makeText(requireContext(), "Error al cargar empleados: ${error.message}",
-                            Toast.LENGTH_SHORT).show()
+                    } else {
+                        binding.noEmployeesText.visibility = View.GONE
                     }
-                })
+                }
+                .addOnFailureListener { e ->
+                    binding.progressBar.visibility = View.GONE
+                    binding.noEmployeesText.visibility = View.VISIBLE
+                    Toast.makeText(requireContext(), "Error al cargar empleados: ${e.message}",
+                        Toast.LENGTH_SHORT).show()
+                }
         }
     }
-
     private fun showCreateEmployeeDialog() {
         val mainActivity = activity as? MainActivity
         mainActivity?.let {
@@ -220,23 +212,24 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
     }
 
     private fun updateEmployeeProfile(employeeId: String, firstName: String, lastName: String, phone: String) {
-        val updates = HashMap<String, Any>()
-        updates["firstName"] = firstName
-        updates["lastName"] = lastName
-        updates["phone"] = phone
+        val updates = hashMapOf<String, Any>(
+            "firstName" to firstName,
+            "lastName" to lastName,
+            "phone" to phone
+        )
 
-        database.child("users").child(employeeId).updateChildren(updates)
+        Firebase.firestore.collection("users").document(employeeId)
+            .update(updates)
             .addOnSuccessListener {
                 Toast.makeText(requireContext(), "Empleado actualizado correctamente",
                     Toast.LENGTH_SHORT).show()
-                loadEmployees() // Recargar datos
+                loadEmployees() // Reload data
             }
             .addOnFailureListener { e ->
                 Toast.makeText(requireContext(), "Error al actualizar el empleado: ${e.message}",
                     Toast.LENGTH_SHORT).show()
             }
     }
-
     private fun showDeleteEmployeeConfirmDialog(employee: EmployeeModel) {
         val builder = AlertDialog.Builder(requireContext())
         builder.setTitle("Eliminar Empleado")
@@ -251,19 +244,19 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
     }
 
     private fun deleteEmployee(employeeId: String) {
-        // Eliminar de la base de datos
-        database.child("users").child(employeeId).removeValue()
+        // Delete from Firestore
+        Firebase.firestore.collection("users").document(employeeId)
+            .delete()
             .addOnSuccessListener {
                 Toast.makeText(requireContext(), "Empleado eliminado correctamente",
                     Toast.LENGTH_SHORT).show()
-                loadEmployees() // Recargar la lista
+                loadEmployees() // Reload list
             }
             .addOnFailureListener { e ->
                 Toast.makeText(requireContext(), "Error al eliminar el empleado: ${e.message}",
                     Toast.LENGTH_SHORT).show()
             }
     }
-
     // Modelo de datos para empleado
     data class EmployeeModel(
         val uid: String,

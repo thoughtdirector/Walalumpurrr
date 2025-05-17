@@ -1,16 +1,15 @@
 package com.example.notificacionesapp.firebase
 
 import android.util.Log
-import com.example.notificacionesapp.model.FirebaseNotification
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.Query
-import com.google.firebase.database.ValueEventListener
+import com.example.notificacionesapp.model.FirestoreNotification
+import com.google.firebase.Timestamp
+import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.ktx.Firebase
 
 class NotificationDatabase {
-    private val database = FirebaseDatabase.getInstance()
-    private val notificationsRef = database.getReference("notifications")
+    private val db = Firebase.firestore
+    private val notificationsCollection = db.collection("notifications")
 
     companion object {
         private const val TAG = "NotificationDatabase"
@@ -20,47 +19,45 @@ class NotificationDatabase {
     fun getLatestNotifications(
         adminId: String,
         limit: Int = 20,
-        callback: (List<FirebaseNotification>) -> Unit
+        callback: (List<FirestoreNotification>) -> Unit
     ) {
-        val query = notificationsRef.child(adminId)
-            .orderByChild("timestamp")
-            .limitToLast(limit)
+        notificationsCollection
+            .whereEqualTo("adminId", adminId)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .limit(limit.toLong())
+            .get()
+            .addOnSuccessListener { documents ->
+                val notifications = mutableListOf<FirestoreNotification>()
 
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val notifications = mutableListOf<FirebaseNotification>()
-
-                for (notificationSnapshot in snapshot.children) {
-                    val notification = notificationSnapshot.getValue(FirebaseNotification::class.java)
-                    notification?.let {
-                        notifications.add(it)
-                    }
+                for (document in documents) {
+                    val notification = document.toObject(FirestoreNotification::class.java)
+                    notifications.add(notification)
                 }
-
-                // Orden descendente (más recientes primero)
-                notifications.sortByDescending { it.timestamp }
 
                 callback(notifications)
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Error al cargar notificaciones: ${error.message}")
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error al cargar notificaciones: ${e.message}")
                 callback(emptyList())
             }
-        })
     }
 
     // Crear/guardar una nueva notificación
     fun saveNotification(
-        notification: FirebaseNotification,
+        notification: FirestoreNotification,
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        val notificationRef = notificationsRef.child(notification.adminId).child(notification.id)
+        val notificationId = notification.id
 
-        notificationRef.setValue(notification)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { onError(it) }
+        notificationsCollection.document(notificationId)
+            .set(notification)
+            .addOnSuccessListener {
+                onSuccess()
+            }
+            .addOnFailureListener { e ->
+                onError(e)
+            }
     }
 
     // Marcar notificación como leída
@@ -70,66 +67,69 @@ class NotificationDatabase {
         onSuccess: () -> Unit,
         onError: (Exception) -> Unit
     ) {
-        val updates = hashMapOf<String, Any>(
-            "read" to true
-        )
-
-        notificationsRef.child(adminId).child(notificationId)
-            .updateChildren(updates)
-            .addOnSuccessListener { onSuccess() }
-            .addOnFailureListener { onError(it) }
+        notificationsCollection.document(notificationId)
+            .update("read", true)
+            .addOnSuccessListener {
+                onSuccess()
+            }
+            .addOnFailureListener { e ->
+                onError(e)
+            }
     }
 
     // Buscar notificaciones por tipo
     fun getNotificationsByType(
         adminId: String,
         type: String,
-        callback: (List<FirebaseNotification>) -> Unit
+        callback: (List<FirestoreNotification>) -> Unit
     ) {
-        val query = notificationsRef.child(adminId)
-            .orderByChild("type")
-            .equalTo(type)
+        notificationsCollection
+            .whereEqualTo("adminId", adminId)
+            .whereEqualTo("type", type)
+            .orderBy("timestamp", Query.Direction.DESCENDING)
+            .get()
+            .addOnSuccessListener { documents ->
+                val notifications = mutableListOf<FirestoreNotification>()
 
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                val notifications = mutableListOf<FirebaseNotification>()
-
-                for (notificationSnapshot in snapshot.children) {
-                    val notification = notificationSnapshot.getValue(FirebaseNotification::class.java)
-                    notification?.let {
-                        notifications.add(it)
-                    }
+                for (document in documents) {
+                    val notification = document.toObject(FirestoreNotification::class.java)
+                    notifications.add(notification)
                 }
-
-                // Orden descendente (más recientes primero)
-                notifications.sortByDescending { it.timestamp }
 
                 callback(notifications)
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Error al cargar notificaciones por tipo: ${error.message}")
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error al cargar notificaciones por tipo: ${e.message}")
                 callback(emptyList())
             }
-        })
     }
 
     // Eliminar notificaciones antiguas (retención de datos)
     fun cleanupOldNotifications(adminId: String, olderThanTimestamp: Long) {
-        val query = notificationsRef.child(adminId)
-            .orderByChild("timestamp")
-            .endAt(olderThanTimestamp.toDouble())
+        val timestampLimit = Timestamp(olderThanTimestamp / 1000, 0)
 
-        query.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                for (notificationSnapshot in snapshot.children) {
-                    notificationSnapshot.ref.removeValue()
+        notificationsCollection
+            .whereEqualTo("adminId", adminId)
+            .whereLessThan("timestamp", timestampLimit)
+            .get()
+            .addOnSuccessListener { documents ->
+                val batch = db.batch()
+                for (document in documents) {
+                    batch.delete(document.reference)
+                }
+
+                if (documents.size() > 0) {
+                    batch.commit()
+                        .addOnSuccessListener {
+                            Log.d(TAG, "Limpieza completada: ${documents.size()} notificaciones eliminadas")
+                        }
+                        .addOnFailureListener { e ->
+                            Log.e(TAG, "Error al ejecutar lote de eliminación: ${e.message}")
+                        }
                 }
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Error al limpiar notificaciones antiguas: ${error.message}")
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error al buscar notificaciones antiguas: ${e.message}")
             }
-        })
     }
 }

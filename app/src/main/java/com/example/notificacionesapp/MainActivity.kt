@@ -34,10 +34,10 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.ktx.auth
 import com.google.firebase.ktx.Firebase
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.database.ktx.database
+import com.google.firebase.firestore.ktx.firestore
+import com.example.notificacionesapp.model.FirestoreUser
+import com.google.firebase.firestore.ktx.firestore
+import com.google.firebase.messaging.FirebaseMessaging
 import java.util.Locale
 import java.util.UUID
 
@@ -133,6 +133,8 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (savedInstanceState == null) {
             checkAuthState()
         }
+
+        updateFCMToken()
 
         scheduleNotificationCleanup()
 
@@ -444,6 +446,30 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
+    private fun updateFCMToken() {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+
+            val token = task.result
+            val userId = auth.currentUser?.uid ?: sessionManager.getUserId() ?: return@addOnCompleteListener
+
+            // Update token in Firestore
+            Firebase.firestore.collection("users")
+                .document(userId)
+                .update("fcmToken", token)
+                .addOnSuccessListener {
+                    Log.d(TAG, "FCM token updated in Firestore")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Error updating FCM token in Firestore: ${e.message}")
+                }
+        }
+    }
+
+
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
             // Set Spanish language
@@ -470,39 +496,40 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     fun getUserRole(uid: String) {
-        val database = Firebase.database
-        val userRef = database.getReference("users").child(uid).child("role")
+        // Get role from Firestore
+        Firebase.firestore.collection("users").document(uid)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    userRole = document.getString("role")
+                    Log.d(TAG, "User role from Firestore: $userRole")
 
-        userRef.addListenerForSingleValueEvent(object : ValueEventListener {
-            override fun onDataChange(snapshot: DataSnapshot) {
-                userRole = snapshot.value as? String
-                Log.d(TAG, "User role: $userRole")
+                    // Save role in SessionManager
+                    userRole?.let {
+                        sessionManager.updateUserRole(it)
+                    }
 
-                // Guardar rol en SessionManager
-                userRole?.let {
-                    sessionManager.updateUserRole(it)
+                    setupNavigation()
+                } else {
+                    Log.d(TAG, "No such user document")
+                    userRole = "employee" // Default role
+                    sessionManager.updateUserRole(userRole ?: "employee")
+                    setupNavigation()
                 }
-
-                setupNavigation()
             }
-
-            override fun onCancelled(error: DatabaseError) {
-                Log.e(TAG, "Error getting user role: ${error.message}")
-                userRole = "employee"
-
-                // Guardar rol por defecto en SessionManager
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Error getting user role from Firestore: ${e.message}")
+                userRole = "employee" // Default on error
                 sessionManager.updateUserRole(userRole ?: "employee")
-
                 setupNavigation()
             }
-        })
     }
-
     // Método para crear sesión local (llamado desde AccountFragment)
     fun createUserSession(userId: String, email: String, role: String) {
         sessionManager.createLoginSession(userId, email, role)
         userRole = role
         setupNavigation()
+        updateFCMToken()
     }
 
     // Método para cerrar sesión
@@ -537,27 +564,31 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 if (task.isSuccessful) {
                     Log.d(TAG, "createEmployeeAccount:success")
                     val user = auth.currentUser
-
                     val adminUid = auth.currentUser?.uid
 
                     user?.uid?.let { employeeUid ->
-                        val employeeData = hashMapOf(
-                            "firstName" to firstName,
-                            "lastName" to lastName,
-                            "phone" to phone,
-                            "birthDate" to birthDate,
-                            "role" to "employee",
-                            "adminId" to auth.currentUser?.uid,
-                            "email" to email
+                        // Create user for Firestore
+                        val firestoreUser = FirestoreUser(
+                            uid = employeeUid,
+                            firstName = firstName,
+                            lastName = lastName,
+                            phone = phone,
+                            birthDate = birthDate,
+                            email = email,
+                            role = "employee",
+                            adminId = adminUid
                         )
 
-                        Firebase.database.reference.child("users").child(employeeUid).setValue(employeeData)
+                        // Save to Firestore
+                        Firebase.firestore.collection("users")
+                            .document(employeeUid)
+                            .set(firestoreUser)
                             .addOnSuccessListener {
-                                Log.d(TAG, "Employee data written to database")
+                                Log.d(TAG, "Employee data written to Firestore")
                                 showEmployeeCredentials(email, password)
                             }
                             .addOnFailureListener { e ->
-                                Log.e(TAG, "Error writing employee data to database", e)
+                                Log.e(TAG, "Error writing employee data to Firestore", e)
                                 Toast.makeText(this, "Error al guardar los datos del empleado.", Toast.LENGTH_SHORT).show()
                             }
                     }
