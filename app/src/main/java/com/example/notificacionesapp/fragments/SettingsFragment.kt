@@ -13,6 +13,7 @@ import com.example.notificacionesapp.R
 import com.example.notificacionesapp.ThemeActivity
 import com.example.notificacionesapp.databinding.FragmentSettingsBinding
 import com.example.notificacionesapp.util.AmountSettings
+import com.example.notificacionesapp.util.CurrencyTextWatcher
 
 class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
@@ -28,23 +29,25 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
     override fun setupUI() {
         amountSettings = AmountSettings(requireContext())
 
+        // Configurar el TextWatcher para el campo de monto en el fragmento
+        val currencyTextWatcher = CurrencyTextWatcher(binding.amountInput)
+        binding.amountInput.addTextChangedListener(currencyTextWatcher)
+        binding.amountInput.hint = "Ej: 100.000"
+
         // Cargar configuraciones guardadas
-        loadSettings()
+        loadSettings(currencyTextWatcher)
 
         // Configurar botones
         binding.saveSettingsButton.setOnClickListener {
-            saveSettings()
+            saveSettings(currencyTextWatcher)
         }
 
         binding.testServiceButton.setOnClickListener {
             testService()
         }
-
-        // El botón de crear empleado ya no está en este fragmento
-        // Se ha movido al ProfileFragment
     }
 
-    private fun loadSettings() {
+    private fun loadSettings(currencyTextWatcher: CurrencyTextWatcher) {
         try {
             val appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
             val themePrefs = requireContext().getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
@@ -60,13 +63,13 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
             // Cargar configuración de montos
             binding.amountLimitSwitch.isChecked = amountSettings.isAmountLimitEnabled()
-            binding.amountInput.setText(amountSettings.getAmountThreshold().toString())
+            currencyTextWatcher.setNumericValue(amountSettings.getAmountThreshold())
         } catch (e: Exception) {
             Toast.makeText(requireContext(), "Error al cargar configuración: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun saveSettings() {
+    private fun saveSettings(currencyTextWatcher: CurrencyTextWatcher) {
         try {
             val appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
             val themePrefs = requireContext().getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
@@ -80,13 +83,17 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             }.apply()
 
             // Guardar configuración de montos
-            amountSettings.setAmountLimitEnabled(binding.amountLimitSwitch.isChecked)
-            try {
-                val threshold = binding.amountInput.text.toString().toInt()
-                amountSettings.setAmountThreshold(threshold)
-            } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Error en el valor del monto. Usando valor predeterminado.", Toast.LENGTH_SHORT).show()
+            val isAmountLimitEnabled = binding.amountLimitSwitch.isChecked
+            val threshold = currencyTextWatcher.getNumericValue()
+
+            // Validar que el threshold sea mayor a 0 si está habilitado
+            if (isAmountLimitEnabled && threshold <= 0) {
+                Toast.makeText(requireContext(), "Por favor, ingrese un monto válido mayor a 0", Toast.LENGTH_SHORT).show()
+                return
             }
+
+            amountSettings.setAmountLimitEnabled(isAmountLimitEnabled)
+            amountSettings.setAmountThreshold(threshold)
 
             // Notificar al servicio sobre los cambios
             val serviceIntent = Intent(requireContext(), NotificationService::class.java)
@@ -108,7 +115,13 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                 return // Salir del método para evitar mostrar el Toast aquí
             }
 
-            Toast.makeText(requireContext(), "Configuración guardada", Toast.LENGTH_SHORT).show()
+            // Mostrar mensaje de confirmación para la configuración de montos
+            if (isAmountLimitEnabled) {
+                val formattedAmount = CurrencyTextWatcher.formatValue(threshold)
+                Toast.makeText(requireContext(), "Configuración guardada. Límite: $formattedAmount pesos", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(requireContext(), "Configuración guardada", Toast.LENGTH_SHORT).show()
+            }
         } catch (e: Exception) {
             Toast.makeText(requireContext(), "Error al guardar configuración: ${e.message}", Toast.LENGTH_SHORT).show()
         }

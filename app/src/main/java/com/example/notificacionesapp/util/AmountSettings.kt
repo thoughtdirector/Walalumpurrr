@@ -21,26 +21,68 @@ class AmountSettings(private val context: Context) {
         prefs.edit().putBoolean(KEY_AMOUNT_LIMIT_ENABLED, enabled).apply()
     }
 
-    fun getAmountThreshold(): Int {
-        return prefs.getInt(KEY_AMOUNT_THRESHOLD, DEFAULT_AMOUNT_THRESHOLD)
+    fun getAmountThreshold(): Long {
+        return prefs.getLong(KEY_AMOUNT_THRESHOLD, DEFAULT_AMOUNT_THRESHOLD.toLong())
     }
 
-    fun setAmountThreshold(threshold: Int) {
-        prefs.edit().putInt(KEY_AMOUNT_THRESHOLD, threshold).apply()
+    fun setAmountThreshold(threshold: Long) {
+        prefs.edit().putLong(KEY_AMOUNT_THRESHOLD, threshold).apply()
     }
 
+    /**
+     * Obtiene el monto límite formateado con separadores de miles
+     */
+    fun getFormattedAmountThreshold(): String {
+        return CurrencyTextWatcher.formatValue(getAmountThreshold())
+    }
+
+    /**
+     * Verifica si el monto debe ser leído según el límite configurado
+     * @param amount El monto como cadena (puede venir de notificaciones con diferentes formatos)
+     * @return true si debe leerse, false si supera el límite
+     */
     fun shouldReadAmount(amount: String?): Boolean {
         if (!isAmountLimitEnabled() || amount.isNullOrBlank()) {
             return true // Si no hay límite activado o no hay monto, leer siempre
         }
 
         try {
-            // Convertir el monto a un número
-            val numericAmount = amount.replace("[^0-9]".toRegex(), "").toInt()
-            return numericAmount <= getAmountThreshold()
+            // Usar el método de CurrencyTextWatcher para parsear el monto
+            val numericAmount = CurrencyTextWatcher.parseFormattedValue(amount)
+            val threshold = getAmountThreshold()
+
+            // Log para debugging (opcional)
+            android.util.Log.d("AmountSettings",
+                "Comparando: $numericAmount <= $threshold = ${numericAmount <= threshold}")
+
+            return numericAmount <= threshold
         } catch (e: Exception) {
             // Si hay algún error al convertir, permitir la lectura por seguridad
+            android.util.Log.e("AmountSettings", "Error parsing amount: $amount", e)
             return true
+        }
+    }
+
+    /**
+     * Verifica si el monto debe ser leído (versión que acepta Long directamente)
+     * @param amount El monto como número
+     * @return true si debe leerse, false si supera el límite
+     */
+    fun shouldReadAmount(amount: Long): Boolean {
+        if (!isAmountLimitEnabled()) {
+            return true
+        }
+        return amount <= getAmountThreshold()
+    }
+
+    /**
+     * Obtiene información del límite actual para mostrar en la UI
+     */
+    fun getLimitInfo(): String {
+        return if (isAmountLimitEnabled()) {
+            "Límite activo: ${getFormattedAmountThreshold()} pesos"
+        } else {
+            "Sin límite de monto"
         }
     }
 }
