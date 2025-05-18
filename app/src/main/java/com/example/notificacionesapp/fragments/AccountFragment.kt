@@ -323,7 +323,7 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
                                 lastName = (user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""),
                                 email = (user.email ?: ""),
                                 phone = (user.phoneNumber ?: ""),
-                                role = "user"
+                                role = "admin"
                             )
 
                             db.collection("users").document(uid)
