@@ -10,7 +10,8 @@ import androidx.viewbinding.ViewBinding
 abstract class BaseFragment<VB : ViewBinding> : Fragment() {
 
     private var _binding: VB? = null
-    protected val binding: VB get() = _binding!!
+    protected val binding: VB
+        get() = _binding ?: throw IllegalStateException("Fragment $this binding cannot be accessed before onCreateView() or after onDestroyView()")
 
     abstract fun getViewBinding(inflater: LayoutInflater, container: ViewGroup?): VB
 
@@ -19,13 +20,22 @@ abstract class BaseFragment<VB : ViewBinding> : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        _binding = getViewBinding(inflater, container)
-        return binding.root
+        try {
+            _binding = getViewBinding(inflater, container)
+            return binding.root
+        } catch (e: Exception) {
+            android.util.Log.e("BaseFragment", "Error creating view binding: ${e.message}")
+            throw e
+        }
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-        setupUI()
+        try {
+            setupUI()
+        } catch (e: Exception) {
+            android.util.Log.e("BaseFragment", "Error in setupUI: ${e.message}")
+        }
     }
 
     abstract fun setupUI()

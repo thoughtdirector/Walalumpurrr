@@ -40,21 +40,12 @@
             android:exported="false" />
 
         <activity
-            android:name=".AppSettingsActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".AmountSettingsActivity"
             android:exported="false" />
 
         <activity
             android:name=".HistoryActivity"
             android:exported="false" />
-
-        <activity
-            android:name=".ThemeActivity"
-            android:exported="false"
-            android:theme="@style/Theme.TransparentActivity" />
 
         <service
             android:name=".NotificationService"

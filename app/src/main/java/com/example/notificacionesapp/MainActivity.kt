@@ -87,23 +87,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    private val themeChangeReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: Context, intent: Intent) {
-            if (intent.action == "com.example.notificacionesapp.THEME_CHANGED") {
-                val isDarkMode = intent.getBooleanExtra("dark_mode", false)
-                // Aplicar el tema sin reiniciar la actividad
-                AppCompatDelegate.setDefaultNightMode(
-                    if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
-                    else AppCompatDelegate.MODE_NIGHT_NO
-                )
-            }
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Aplicar tema antes de setContentView
-        applyTheme()
-
         super.onCreate(savedInstanceState)
         binding = ActivityMainRedesignedBinding.inflate(layoutInflater)
         setContentView(binding.root)
@@ -189,20 +173,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 loadFragment(homeFragment!!)
                 binding.bottomNavigation.selectedItemId = R.id.nav_home
             }
-        }
-    }
-
-    private fun applyTheme() {
-        try {
-            val themePrefs = getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
-            val isDarkMode = themePrefs.getBoolean("dark_mode", false)
-
-            AppCompatDelegate.setDefaultNightMode(
-                if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
-                else AppCompatDelegate.MODE_NIGHT_NO
-            )
-        } catch (e: Exception) {
-            Log.e("MainActivity", "Error al aplicar tema: ${e.message}")
         }
     }
 
@@ -422,11 +392,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             }
 
             val filterTheme = IntentFilter("com.example.notificacionesapp.THEME_CHANGED")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                registerReceiver(themeChangeReceiver, filterTheme, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                registerReceiver(themeChangeReceiver, filterTheme)
-            }
         } catch (e: Exception) {
             Log.e("MainActivity", "Error al registrar receivers: ${e.message}")
         }
@@ -439,7 +404,6 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         super.onPause()
         try {
             unregisterReceiver(statusReceiver)
-            unregisterReceiver(themeChangeReceiver)
         } catch (e: Exception) {
             // Ignorar si los receptores no están registrados
             Log.e("MainActivity", "Error al desregistrar receivers: ${e.message}")

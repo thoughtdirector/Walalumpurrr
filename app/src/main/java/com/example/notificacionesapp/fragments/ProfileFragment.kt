@@ -36,13 +36,12 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
     }
 
     override fun setupUI() {
-        // Ocultar sección de admin por defecto
+        userDetails = HashMap()
+
         binding.adminCard.visibility = View.GONE
 
-        // Cargar información del usuario
         loadUserProfile()
 
-        // Configurar botones
         setupButtons()
     }
 
@@ -50,41 +49,82 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
             // Show email
-            binding.userEmailText.text = currentUser.email
+            binding.userEmailText.text = currentUser.email ?: "Sin email"
 
             // Get additional data from Firestore
             db.collection("users").document(currentUser.uid)
                 .get()
                 .addOnSuccessListener { document ->
-                    if (document != null && document.exists()) {
-                        // Guardar datos para uso posterior
-                        userDetails = document.data ?: HashMap()
+                    try {
+                        if (document != null && document.exists()) {
+                            // Guardar datos para uso posterior - CORREGIDO
+                            val documentData = document.data
+                            userDetails = if (documentData != null) {
+                                HashMap(documentData)
+                            } else {
+                                HashMap()
+                            }
 
-                        // Show name
-                        val firstName = document.getString("firstName") ?: ""
-                        val lastName = document.getString("lastName") ?: ""
-                        binding.userNameText.text = "$firstName $lastName"
+                            // Show name - CORREGIDO
+                            val firstName = document.getString("firstName") ?: ""
+                            val lastName = document.getString("lastName") ?: ""
+                            val fullName = if (firstName.isNotEmpty() || lastName.isNotEmpty()) {
+                                "$firstName $lastName".trim()
+                            } else {
+                                "Sin nombre"
+                            }
+                            binding.userNameText.text = fullName
 
-                        // Show phone
-                        val phone = document.getString("phone") ?: "No disponible"
-                        binding.userPhoneText.text = "Teléfono: $phone"
+                            // Show phone - CORREGIDO
+                            val phone = document.getString("phone") ?: "No disponible"
+                            binding.userPhoneText.text = "Teléfono: $phone"
 
-                        // Show role and configure UI based on role
-                        val role = document.getString("role") ?: "user"
-                        binding.userRoleText.text = "Rol: ${roleToSpanish(role)}"
+                            // Show role and configure UI based on role - CORREGIDO
+                            val role = document.getString("role") ?: "user"
+                            binding.userRoleText.text = "Rol: ${roleToSpanish(role)}"
 
-                        // Configure admin section visibility
-                        if (role == "admin") {
-                            binding.adminCard.visibility = View.VISIBLE
+                            // Configure admin section visibility
+                            if (role == "admin") {
+                                binding.adminCard.visibility = View.VISIBLE
+                            } else {
+                                binding.adminCard.visibility = View.GONE
+                            }
                         } else {
+                            // Document doesn't exist - set defaults
+                            userDetails = HashMap()
+                            binding.userNameText.text = "Sin nombre"
+                            binding.userPhoneText.text = "Teléfono: No disponible"
+                            binding.userRoleText.text = "Rol: Usuario"
                             binding.adminCard.visibility = View.GONE
                         }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error processing user data: ${e.message}")
+                        // Set safe defaults
+                        userDetails = HashMap()
+                        binding.userNameText.text = "Error al cargar nombre"
+                        binding.userPhoneText.text = "Teléfono: Error al cargar"
+                        binding.userRoleText.text = "Rol: Usuario"
+                        binding.adminCard.visibility = View.GONE
                     }
                 }
                 .addOnFailureListener { e ->
                     Log.e(TAG, "Error loading user data from Firestore: ${e.message}")
+                    // Set safe defaults on error
+                    userDetails = HashMap()
+                    binding.userNameText.text = "Error al cargar datos"
+                    binding.userPhoneText.text = "Teléfono: Error al cargar"
+                    binding.userRoleText.text = "Rol: Usuario"
+                    binding.adminCard.visibility = View.GONE
                     Toast.makeText(requireContext(), "Error al cargar datos del usuario", Toast.LENGTH_SHORT).show()
                 }
+        } else {
+            // No current user - set defaults
+            userDetails = HashMap()
+            binding.userEmailText.text = "Sin email"
+            binding.userNameText.text = "Sin nombre"
+            binding.userPhoneText.text = "Teléfono: No disponible"
+            binding.userRoleText.text = "Rol: Usuario"
+            binding.adminCard.visibility = View.GONE
         }
     }
 
@@ -136,31 +176,34 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
         layout.orientation = LinearLayout.VERTICAL
         layout.setPadding(20, 20, 20, 20)
 
-        // Campos a editar
+        // Campos a editar - CORREGIDO para evitar ClassCastException
         val firstNameInput = EditText(requireContext())
         firstNameInput.hint = "Nombre"
-        firstNameInput.setText(userDetails["firstName"] as? String ?: "")
+        val firstName = userDetails["firstName"]
+        firstNameInput.setText(if (firstName is String) firstName else "")
         layout.addView(firstNameInput)
 
         val lastNameInput = EditText(requireContext())
         lastNameInput.hint = "Apellido"
-        lastNameInput.setText(userDetails["lastName"] as? String ?: "")
+        val lastName = userDetails["lastName"]
+        lastNameInput.setText(if (lastName is String) lastName else "")
         layout.addView(lastNameInput)
 
         val phoneInput = EditText(requireContext())
         phoneInput.hint = "Teléfono"
-        phoneInput.setText(userDetails["phone"] as? String ?: "")
+        val phone = userDetails["phone"]
+        phoneInput.setText(if (phone is String) phone else "")
         layout.addView(phoneInput)
 
         builder.setView(layout)
 
         builder.setPositiveButton("Guardar") { _, _ ->
-            val firstName = firstNameInput.text.toString()
-            val lastName = lastNameInput.text.toString()
-            val phone = phoneInput.text.toString()
+            val newFirstName = firstNameInput.text.toString().trim()
+            val newLastName = lastNameInput.text.toString().trim()
+            val newPhone = phoneInput.text.toString().trim()
 
-            if (firstName.isNotEmpty() && lastName.isNotEmpty()) {
-                updateUserProfile(firstName, lastName, phone)
+            if (newFirstName.isNotEmpty() && newLastName.isNotEmpty()) {
+                updateUserProfile(newFirstName, newLastName, newPhone)
             } else {
                 Toast.makeText(requireContext(), "Nombre y apellido son obligatorios", Toast.LENGTH_SHORT).show()
             }

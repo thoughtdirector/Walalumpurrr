@@ -24,17 +24,16 @@ class NotificationDatabase {
         notificationsCollection
             .whereEqualTo("adminId", adminId)
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(limit.toLong())
+            .limit(minOf(limit.toLong(), 30)) // Limitar máximo a 30
             .get()
             .addOnSuccessListener { documents ->
-                val notifications = mutableListOf<FirestoreNotification>()
-
-                for (document in documents) {
-                    val notification = document.toObject(FirestoreNotification::class.java)
-                    notifications.add(notification)
+                try {
+                    val notifications = documents.toObjects(FirestoreNotification::class.java)
+                    callback(notifications)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error parsing notifications: ${e.message}")
+                    callback(emptyList())
                 }
-
-                callback(notifications)
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Error al cargar notificaciones: ${e.message}")

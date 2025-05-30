@@ -10,7 +10,6 @@ import android.widget.Toast
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.NotificationService
 import com.example.notificacionesapp.R
-import com.example.notificacionesapp.ThemeActivity
 import com.example.notificacionesapp.databinding.FragmentSettingsBinding
 import com.example.notificacionesapp.util.AmountSettings
 import com.example.notificacionesapp.util.CurrencyTextWatcher
@@ -50,16 +49,12 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
     private fun loadSettings(currencyTextWatcher: CurrencyTextWatcher) {
         try {
             val appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            val themePrefs = requireContext().getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
 
             // Cargar configuración de apps
             binding.nequiSwitch.isChecked = appPrefs.getBoolean("app_nequi", true)
             binding.daviplataSwitch.isChecked = appPrefs.getBoolean("app_daviplata", true)
             binding.bancolombiaSwitch.isChecked = appPrefs.getBoolean("app_bancolombia", true)
             binding.whatsappSwitch.isChecked = appPrefs.getBoolean("app_whatsapp", true)
-
-            // Cargar configuración de tema
-            binding.darkModeSwitch.isChecked = themePrefs.getBoolean("dark_mode", false)
 
             // Cargar configuración de montos
             binding.amountLimitSwitch.isChecked = amountSettings.isAmountLimitEnabled()
@@ -72,7 +67,6 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
     private fun saveSettings(currencyTextWatcher: CurrencyTextWatcher) {
         try {
             val appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-            val themePrefs = requireContext().getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
 
             // Guardar configuración de apps
             appPrefs.edit().apply {
@@ -99,21 +93,6 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             val serviceIntent = Intent(requireContext(), NotificationService::class.java)
             serviceIntent.action = NotificationService.ACTION_UPDATE_APP_SETTINGS
             requireContext().startService(serviceIntent)
-
-            // Verificar si el tema ha cambiado
-            val isDarkMode = binding.darkModeSwitch.isChecked
-            val oldDarkMode = themePrefs.getBoolean("dark_mode", false)
-
-            // Guardar la configuración del tema
-            themePrefs.edit().putBoolean("dark_mode", isDarkMode).apply()
-
-            if (oldDarkMode != isDarkMode) {
-                // Usar la actividad puente para cambiar el tema de manera segura
-                val themeIntent = Intent(requireContext(), ThemeActivity::class.java)
-                themeIntent.putExtra("dark_mode", isDarkMode)
-                startActivity(themeIntent)
-                return // Salir del método para evitar mostrar el Toast aquí
-            }
 
             // Mostrar mensaje de confirmación para la configuración de montos
             if (isAmountLimitEnabled) {

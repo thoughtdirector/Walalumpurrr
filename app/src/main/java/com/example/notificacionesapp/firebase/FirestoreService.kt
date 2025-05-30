@@ -161,7 +161,7 @@ class FirestoreService {
         db.collection(NOTIFICATIONS_COLLECTION)
             .whereEqualTo("adminId", adminId)
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(50)
+            .limit(30) // Reducido de 50 a 30
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e(TAG, "Error listening for notifications: ${error.message}")
@@ -170,8 +170,13 @@ class FirestoreService {
                 }
 
                 if (snapshot != null) {
-                    val notifications = snapshot.toObjects(FirestoreNotification::class.java)
-                    onUpdate(notifications)
+                    try {
+                        val notifications = snapshot.toObjects(FirestoreNotification::class.java)
+                        onUpdate(notifications)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing notifications: ${e.message}")
+                        onError(e)
+                    }
                 }
             }
     }
