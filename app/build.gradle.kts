@@ -55,18 +55,42 @@ dependencies {
     implementation(libs.androidx.foundation.android)
     implementation(libs.androidx.material3.android)
 
+    // Firebase BOM - Importante mantener todas las dependencias sincronizadas
     implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
-    // Firebase Authentication
-    implementation("com.google.firebase:firebase-firestore-ktx:24.10.0")
-    implementation("com.google.firebase:firebase-auth-ktx:22.3.0")
-    implementation("com.google.firebase:firebase-messaging-ktx:23.3.1")
 
-    // Google Sign-In (añadido para autenticación con Google)
+    // Firebase Core y Authentication
+    implementation("com.google.firebase:firebase-firestore-ktx")
+    implementation("com.google.firebase:firebase-auth-ktx")
+
+    // Firebase Messaging - Actualizado para FCM v1
+    implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-functions-ktx")
+
+    // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")
-// OkHttp para las llamadas FCM
-    implementation("com.squareup.okhttp3:okhttp:4.11.0")
 
-// WorkManager para tareas periódicas
+    // OkHttp para llamadas HTTP (mantener por compatibilidad)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // WorkManager para tareas periódicas
     implementation("androidx.work:work-runtime-ktx:2.9.0")
+
+    // Coroutines - Necesario para el nuevo AdminNotificationService
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Lifecycle components
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
+    // Coroutines - ESENCIAL para AdminNotificationService
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+    // Testing dependencies
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 
 }

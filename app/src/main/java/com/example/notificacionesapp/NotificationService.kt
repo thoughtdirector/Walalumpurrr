@@ -31,61 +31,84 @@ class NotificationService : NotificationListenerService() {
     private val NOTIFICATION_CHANNEL_ID = "notification_service_channel"
     private var ttsInitialized = false
     private lateinit var notificationHistoryManager: NotificationHistoryManager
-    private lateinit var processorRegistry: NotificationProcessorRegistry
+    private var processorRegistry: NotificationProcessorRegistry? = null
     private lateinit var amountSettings: AmountSettings
+    private val mainHandler = Handler(Looper.getMainLooper())
 
     companion object {
         var isServiceActive = false
         const val ACTION_START_SERVICE = "com.example.notificacionesapp.START_SERVICE"
         const val ACTION_STOP_SERVICE = "com.example.notificacionesapp.STOP_SERVICE"
         const val ACTION_UPDATE_APP_SETTINGS = "com.example.notificacionesapp.UPDATE_APP_SETTINGS"
+        private const val TAG = "NotificationService"
     }
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("NotificationService", "Servicio iniciando")
+        Log.d(TAG, "Service created")
 
-        // Inicializar componentes
-        notificationHistoryManager = NotificationHistoryManager(this)
-        processorRegistry = NotificationProcessorRegistry(applicationContext, notificationHistoryManager)
-        amountSettings = AmountSettings(this) // Añadir esta línea
+        try {
+            // Initialize components with error handling
+            notificationHistoryManager = NotificationHistoryManager(this)
+            processorRegistry = NotificationProcessorRegistry(applicationContext, notificationHistoryManager)
+            amountSettings = AmountSettings(this)
 
-        initializeTTS()
-        loadAppSettings()
+            initializeTTS()
+            loadAppSettings()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error in onCreate: ${e.message}", e)
+        }
     }
 
     private fun initializeTTS() {
-        // Configurar el volumen al máximo para asegurar que se escuche
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0)
-
-        // Inicializar TTS de manera segura
         try {
+            // Configure audio to reasonable level
+            val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
+            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+
+            // Only adjust if volume is too low
+            if (currentVolume < maxVolume / 3) {
+                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0)
+            }
+
+            // Initialize TTS safely
             tts = TextToSpeech(applicationContext) { status ->
-                if (status == TextToSpeech.SUCCESS) {
-                    val result = tts?.setLanguage(Locale("es", "ES"))
-
-                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        Log.e("NotificationService", "El lenguaje español no está soportado")
-                        ttsInitialized = false
-                    } else {
-                        Log.d("NotificationService", "TTS inicializado correctamente")
-                        ttsInitialized = true
-
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            if (isServiceActive) {
-                                speakOut("Servicio de lectura de notificaciones activado")
-                            }
-                        }, 1000)
-                    }
-                } else {
-                    Log.e("NotificationService", "Error al inicializar TTS: código = $status")
-                    ttsInitialized = false
+                mainHandler.post {
+                    handleTTSInitialization(status)
                 }
             }
         } catch (e: Exception) {
-            Log.e("NotificationService", "Excepción al inicializar TTS: ${e.message}")
+            Log.e(TAG, "Exception initializing TTS: ${e.message}", e)
+            ttsInitialized = false
+        }
+    }
+
+    private fun handleTTSInitialization(status: Int) {
+        try {
+            if (status == TextToSpeech.SUCCESS) {
+                val result = tts?.setLanguage(Locale("es", "ES"))
+
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.e(TAG, "Spanish language not supported")
+                    ttsInitialized = false
+                } else {
+                    Log.d(TAG, "TTS initialized successfully")
+                    ttsInitialized = true
+
+                    // Test TTS after initialization with delay
+                    mainHandler.postDelayed({
+                        if (isServiceActive && ttsInitialized) {
+                            speakOut("Servicio de lectura de notificaciones activado")
+                        }
+                    }, 1000)
+                }
+            } else {
+                Log.e(TAG, "TTS initialization failed with status: $status")
+                ttsInitialized = false
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error handling TTS initialization: ${e.message}", e)
             ttsInitialized = false
         }
     }
@@ -98,36 +121,32 @@ class NotificationService : NotificationListenerService() {
                 ACTION_START_SERVICE -> {
                     isServiceActive = true
                     startForeground()
-                    Log.d("NotificationService", "Servicio activado explícitamente")
+                    Log.d(TAG, "Service activated explicitly")
 
-                    // Solo hablar si TTS está inicializado
+                    // Only speak if TTS is ready
                     if (ttsInitialized) {
-                        speakOut("Servicio de lectura activado")
+                        mainHandler.postDelayed({
+                            speakOut("Servicio de lectura activado")
+                        }, 500)
                     }
                 }
                 ACTION_STOP_SERVICE -> {
                     isServiceActive = false
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                        stopForeground(STOP_FOREGROUND_REMOVE)
-                    } else {
-                        @Suppress("DEPRECATION")
-                        stopForeground(true)
-                    }
-                    Log.d("NotificationService", "Servicio desactivado explícitamente")
+                    stopForegroundService()
+                    Log.d(TAG, "Service deactivated explicitly")
 
-                    // Solo hablar si TTS está inicializado
+                    // Only speak if TTS is ready
                     if (ttsInitialized) {
                         speakOut("Servicio de lectura desactivado")
                     }
                 }
                 ACTION_UPDATE_APP_SETTINGS -> {
                     loadAppSettings()
-                    Log.d("NotificationService", "Configuración de apps actualizada")
+                    Log.d(TAG, "App settings updated")
                 }
             }
         } catch (e: Exception) {
-            Log.e("NotificationService", "Error en onStartCommand: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "Error in onStartCommand: ${e.message}", e)
         }
 
         return START_STICKY
@@ -149,12 +168,25 @@ class NotificationService : NotificationListenerService() {
                 .setSmallIcon(R.drawable.notification_icon)
                 .setContentIntent(pendingIntent)
                 .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
                 .build()
 
             startForeground(FOREGROUND_SERVICE_ID, notification)
         } catch (e: Exception) {
-            Log.e("NotificationService", "Error en startForeground: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "Error in startForeground: ${e.message}", e)
+        }
+    }
+
+    private fun stopForegroundService() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping foreground service: ${e.message}", e)
         }
     }
 
@@ -168,13 +200,14 @@ class NotificationService : NotificationListenerService() {
                 ).apply {
                     description = "Canal para el servicio de lectura de notificaciones"
                     setShowBadge(false)
+                    enableVibration(false)
+                    setSound(null, null)
                 }
 
                 val manager = getSystemService(NotificationManager::class.java)
-                manager.createNotificationChannel(serviceChannel)
+                manager?.createNotificationChannel(serviceChannel)
             } catch (e: Exception) {
-                Log.e("NotificationService", "Error al crear canal de notificación: ${e.message}")
-                e.printStackTrace()
+                Log.e(TAG, "Error creating notification channel: ${e.message}", e)
             }
         }
     }
@@ -184,31 +217,30 @@ class NotificationService : NotificationListenerService() {
             val prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
             appSettings.clear()
 
-            // Valores predeterminados para apps bancarias comunes
+            // Default values for common banking apps
             appSettings["com.nequi.app"] = prefs.getBoolean("app_nequi", true)
             appSettings["com.nequi.o.android"] = prefs.getBoolean("app_nequi", true)
             appSettings["com.daviplata.app"] = prefs.getBoolean("app_daviplata", true)
             appSettings["com.bancolombia.app"] = prefs.getBoolean("app_bancolombia", true)
             appSettings["com.whatsapp"] = prefs.getBoolean("app_whatsapp", true)
 
-            Log.d("NotificationService", "Configuración cargada: $appSettings")
+            Log.d(TAG, "Settings loaded: $appSettings")
         } catch (e: Exception) {
-            Log.e("NotificationService", "Error al cargar configuración: ${e.message}")
-            e.printStackTrace()
+            Log.e(TAG, "Error loading app settings: ${e.message}", e)
         }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        try {
-            if (!isServiceActive || !ttsInitialized) {
-                Log.d("NotificationService", "Servicio inactivo o TTS no inicializado, ignorando notificación")
-                return
-            }
+        if (!isServiceActive) {
+            Log.v(TAG, "Service inactive, ignoring notification")
+            return
+        }
 
+        try {
             val packageName = sbn.packageName
 
             if (!isAppEnabled(packageName)) {
-                Log.d("NotificationService", "App $packageName deshabilitada, ignorando notificación")
+                Log.v(TAG, "App $packageName disabled, ignoring notification")
                 return
             }
 
@@ -218,76 +250,124 @@ class NotificationService : NotificationListenerService() {
             val title = extras.getString(Notification.EXTRA_TITLE) ?: ""
             val text = extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: ""
 
-            Log.d("NotificationService", "Notificación recibida de $packageName: $title - $text")
+            // Ignore empty notifications
+            if (title.isEmpty() && text.isEmpty()) {
+                Log.v(TAG, "Empty notification, ignoring")
+                return
+            }
 
-            val message = processorRegistry.processNotification(packageName, title, text)
+            Log.d(TAG, "Processing notification from $packageName: $title - $text")
+
+            processNotificationSafely(packageName, title, text)
+
+        } catch (e: Exception) {
+            Log.e(TAG, "Error processing notification", e)
+        }
+    }
+
+    private fun processNotificationSafely(packageName: String, title: String, text: String) {
+        try {
+            val message = processorRegistry?.processNotification(packageName, title, text)
+
             if (message != null) {
-                // Extraer el monto del mensaje procesado
-                val metadata = processorRegistry.getLastProcessedMetadata()
+                // Extract amount from metadata
+                val metadata = processorRegistry?.getLastProcessedMetadata() ?: emptyMap()
                 val amount = metadata["amount"]
 
-                // Guardar en el historial independientemente del monto
+                // Save to history regardless of amount limit
                 lastNotification = message
 
-                // Verificar si debe leerse según el límite de monto
+                // Check if should be read according to amount limit
                 if (amountSettings.shouldReadAmount(amount)) {
-                    speakOut(message)
+                    if (ttsInitialized) {
+                        speakOut(message)
+                    } else {
+                        Log.w(TAG, "TTS not initialized, cannot speak notification")
+                    }
                 } else {
-                    Log.d("NotificationService", "Notificación no leída por límite de monto: $amount")
+                    Log.d(TAG, "Notification not read due to amount limit: $amount")
                 }
             }
         } catch (e: Exception) {
-            Log.e("NotificationService", "Error al procesar notificación", e)
+            Log.e(TAG, "Error in processNotificationSafely: ${e.message}", e)
         }
     }
-    private fun isAppEnabled(packageName: String): Boolean {
-        // Buscar coincidencias parciales en las claves de appSettings
-        for ((app, enabled) in appSettings) {
-            if (packageName.contains(app) && enabled) {
-                return true
-            }
-        }
 
-        // Si no está en la lista de configuraciones, se permite por defecto
-        return true
+    private fun isAppEnabled(packageName: String): Boolean {
+        try {
+            // Look for partial matches in appSettings keys
+            for ((app, enabled) in appSettings) {
+                if (packageName.contains(app, ignoreCase = true) && enabled) {
+                    return true
+                }
+            }
+
+            // If not in configuration list, allow by default
+            return true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking app enabled status: ${e.message}", e)
+            return true // Default to enabled on error
+        }
     }
 
     private fun speakOut(text: String) {
         if (!isServiceActive || !ttsInitialized) {
-            Log.d("NotificationService", "Servicio inactivo o TTS no inicializado, no se leerá la notificación")
+            Log.v(TAG, "Cannot speak: service inactive or TTS not ready")
             return
         }
 
         try {
-            Log.d("NotificationService", "Intentando decir: $text")
-            // Usar Handler para asegurar que esto se ejecute en el hilo principal
-            Handler(Looper.getMainLooper()).post {
+            Log.d(TAG, "Speaking: $text")
+            mainHandler.post {
                 try {
-                    val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "notification_id")
-                    Log.d("NotificationService", "Resultado de TTS speak: $result")
+                    val result = tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "notification_${System.currentTimeMillis()}")
+                    Log.v(TAG, "TTS speak result: $result")
                 } catch (e: Exception) {
-                    Log.e("NotificationService", "Error al hablar: ${e.message}")
+                    Log.e(TAG, "Error in TTS speak: ${e.message}", e)
                 }
             }
         } catch (e: Exception) {
-            Log.e("NotificationService", "Error en speakOut: ${e.message}")
+            Log.e(TAG, "Error in speakOut: ${e.message}", e)
         }
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "Service being destroyed")
+
         try {
-            if (tts != null) {
-                tts?.stop()
-                tts?.shutdown()
+            // Clean up TTS
+            tts?.let {
+                it.stop()
+                it.shutdown()
                 ttsInitialized = false
             }
-            super.onDestroy()
+            tts = null
+
+            // Clean up processor registry
+            processorRegistry?.cleanup()
+            processorRegistry = null
+
+            // Clear settings
+            appSettings.clear()
+
         } catch (e: Exception) {
-            Log.e("NotificationService", "Error en onDestroy: ${e.message}")
+            Log.e(TAG, "Error in onDestroy: ${e.message}", e)
         }
+
+        super.onDestroy()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
         return super.onBind(intent)
+    }
+
+    override fun onListenerConnected() {
+        super.onListenerConnected()
+        Log.d(TAG, "NotificationListenerService connected")
+    }
+
+    override fun onListenerDisconnected() {
+        super.onListenerDisconnected()
+        Log.d(TAG, "NotificationListenerService disconnected")
     }
 }
