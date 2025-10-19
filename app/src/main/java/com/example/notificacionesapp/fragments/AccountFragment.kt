@@ -176,7 +176,9 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                                 // Cargar fragmento Home
                                 mainActivity?.homeFragment = HomeFragment()
-                                mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                mainActivity?.homeFragment?.let { fragment ->
+                                    mainActivity?.loadFragment(fragment)
+                                }
                                 mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                             }
                             .addOnFailureListener { e ->
@@ -231,7 +233,9 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                                 // Cargar fragmento Home
                                 mainActivity?.homeFragment = HomeFragment()
-                                mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                mainActivity?.homeFragment?.let { fragment ->
+                                    mainActivity?.loadFragment(fragment)
+                                }
                                 mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                             }
                             .addOnFailureListener { e ->
@@ -243,7 +247,9 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                                 // Cargar fragmento Home
                                 mainActivity?.homeFragment = HomeFragment()
-                                mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                mainActivity?.homeFragment?.let { fragment ->
+                                    mainActivity?.loadFragment(fragment)
+                                }
                                 mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                             }
                     }
@@ -326,7 +332,9 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                                     // Cargar fragmento Home
                                     mainActivity?.homeFragment = HomeFragment()
-                                    mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                    mainActivity?.homeFragment?.let { fragment ->
+                                    mainActivity?.loadFragment(fragment)
+                                }
                                     mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                                 }
                                 .addOnFailureListener { e ->
@@ -345,7 +353,9 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                                     // Cargar fragmento Home
                                     mainActivity?.homeFragment = HomeFragment()
-                                    mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                    mainActivity?.homeFragment?.let { fragment ->
+                                    mainActivity?.loadFragment(fragment)
+                                }
                                     mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                                 }
                                 .addOnFailureListener { e ->
@@ -357,7 +367,9 @@ class AccountFragment : BaseFragment<FragmentAccountBinding>() {
 
                                     // Cargar fragmento Home
                                     mainActivity?.homeFragment = HomeFragment()
-                                    mainActivity?.loadFragment(mainActivity.homeFragment!!)
+                                    mainActivity?.homeFragment?.let { fragment ->
+                                    mainActivity?.loadFragment(fragment)
+                                }
                                     mainActivity?.binding?.bottomNavigation?.selectedItemId = R.id.nav_home
                                 }
                         }

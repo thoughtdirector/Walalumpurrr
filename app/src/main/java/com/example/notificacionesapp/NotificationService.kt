@@ -277,10 +277,16 @@ class NotificationService : NotificationListenerService() {
     override fun onDestroy() {
         try {
             if (tts != null) {
-                tts?.stop()
-                tts?.shutdown()
+                tts?.let { textToSpeech ->
+                    textToSpeech.stop()
+                    textToSpeech.shutdown()
+                }
                 ttsInitialized = false
             }
+            
+            // Limpiar configuración de apps
+            appSettings.clear()
+            
             super.onDestroy()
         } catch (e: Exception) {
             Log.e("NotificationService", "Error en onDestroy: ${e.message}")

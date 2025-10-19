@@ -1,37 +1,40 @@
 package com.example.notificacionesapp
 
-import android.content.Context
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import com.example.notificacionesapp.databinding.ActivityThemeBinding
 
 class ThemeActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityThemeBinding
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        binding = ActivityThemeBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
-        // Obtener el modo oscuro desde el intent
         val isDarkMode = intent.getBooleanExtra("dark_mode", false)
-
-        // Guardar en preferencias
-        val themePrefs = getSharedPreferences("theme_settings", Context.MODE_PRIVATE)
-        themePrefs.edit().putBoolean("dark_mode", isDarkMode).apply()
-
+        
         // Aplicar el tema
         AppCompatDelegate.setDefaultNightMode(
             if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES
             else AppCompatDelegate.MODE_NIGHT_NO
         )
 
-        // Esperar un momento y volver a la actividad principal
-        Handler(Looper.getMainLooper()).postDelayed({
-            val intent = Intent(this, MainActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-            startActivity(intent)
+        // Enviar resultado
+        val resultIntent = Intent()
+        resultIntent.putExtra("theme_applied", true)
+        setResult(Activity.RESULT_OK, resultIntent)
+        
+        Toast.makeText(this, "Tema aplicado correctamente", Toast.LENGTH_SHORT).show()
+        
+        // Cerrar la actividad después de un breve delay
+        binding.root.postDelayed({
             finish()
-        }, 200)
+        }, 1000)
     }
 }

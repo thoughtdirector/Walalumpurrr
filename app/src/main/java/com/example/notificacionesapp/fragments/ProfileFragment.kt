@@ -455,7 +455,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
         val user = auth.currentUser
         if (user != null && user.email != null) {
             // Reautenticar usuario
-            val credential = EmailAuthProvider.getCredential(user.email!!, currentPassword)
+            val credential = EmailAuthProvider.getCredential(user.email ?: "", currentPassword)
 
             user.reauthenticate(credential)
                 .addOnSuccessListener {
@@ -509,7 +509,7 @@ class ProfileFragment : BaseFragment<FragmentProfileBinding>() {
         val user = auth.currentUser
         if (user != null && user.email != null) {
             // Reautenticar usuario
-            val credential = EmailAuthProvider.getCredential(user.email!!, password)
+            val credential = EmailAuthProvider.getCredential(user.email ?: "", password)
 
             user.reauthenticate(credential)
                 .addOnSuccessListener {

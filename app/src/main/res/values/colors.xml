@@ -23,4 +23,7 @@
     <!-- Estado de color para chips de días -->
     <color name="chip_selected">#33FFFFFF</color>
     <color name="chip_unselected">#1AFFFFFF</color>
+    
+    <!-- Color primario para botones -->
+    <color name="primary_color">#FF6200EE</color>
 </resources>

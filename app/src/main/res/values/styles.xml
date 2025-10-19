@@ -21,4 +21,11 @@
         <item name="android:numbersTextColor">#FFFFFF</item>
         <item name="android:numbersBackgroundColor">#232A42</item>
     </style>
+
+    <!-- Estilo para actividad transparente -->
+    <style name="Theme.TransparentActivity" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
 </resources>
