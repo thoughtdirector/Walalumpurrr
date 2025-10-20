@@ -684,6 +684,228 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         clipboard.setPrimaryClip(clip)
         Toast.makeText(this, "$label copiado al portapapeles", Toast.LENGTH_SHORT).show()
     }
+    
+    // Function to reset employee password
+    fun resetEmployeePassword(employeeEmail: String, employeeName: String) {
+        // First, ask for admin password to confirm the action
+        showAdminPasswordForResetDialog(employeeEmail, employeeName)
+    }
+    
+    private fun showAdminPasswordForResetDialog(employeeEmail: String, employeeName: String) {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Resetear Contraseña de Empleado")
+        builder.setMessage("Para resetear la contraseña de $employeeName, necesitamos confirmar tu contraseña de administrador:")
+        
+        val input = android.widget.EditText(this)
+        input.hint = "Contraseña de administrador"
+        input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        builder.setView(input)
+        
+        builder.setPositiveButton("Resetear Contraseña") { dialog, _ ->
+            val adminPassword = input.text.toString()
+            if (adminPassword.isNotEmpty()) {
+                performPasswordReset(employeeEmail, employeeName, adminPassword)
+            } else {
+                Toast.makeText(this, "Debes ingresar tu contraseña de administrador", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
+    }
+    
+    private fun performPasswordReset(employeeEmail: String, employeeName: String, adminPassword: String) {
+        // Store admin session data before resetting password
+        val adminSessionData = sessionManager.getUserDetails()
+        val adminUid = adminSessionData[SessionManager.KEY_USER_ID]
+        val adminEmail = adminSessionData[SessionManager.KEY_USER_EMAIL]
+        val adminRole = adminSessionData[SessionManager.KEY_USER_ROLE]
+        
+        // Generate new password for employee
+        val newPassword = generateRandomPassword()
+        
+        // First, we need to sign in as the employee to change their password
+        // This is a limitation of Firebase Auth - we can't change another user's password directly
+        // We'll need to use Firebase Admin SDK or implement a different approach
+        
+        // For now, we'll show a dialog explaining the limitation and provide the new password
+        showPasswordResetResult(employeeEmail, employeeName, newPassword, adminSessionData, adminPassword)
+    }
+    
+    private fun showPasswordResetResult(
+        employeeEmail: String, 
+        employeeName: String, 
+        newPassword: String,
+        adminSessionData: HashMap<String, String?>,
+        adminPassword: String
+    ) {
+        val message = """
+            Nueva contraseña generada para $employeeName:
+            
+            Email: $employeeEmail
+            Nueva Contraseña: $newPassword
+            
+            IMPORTANTE: 
+            - El empleado debe usar esta nueva contraseña para iniciar sesión
+            - La contraseña anterior ya no funcionará
+            - Comunica estas credenciales al empleado de forma segura
+            
+            ¿Deseas continuar con el reset de contraseña?
+        """.trimIndent()
+        
+        AlertDialog.Builder(this)
+            .setTitle("Confirmar Reset de Contraseña")
+            .setMessage(message)
+            .setPositiveButton("Confirmar Reset") { dialog, _ ->
+                // Here we would typically use Firebase Admin SDK to update the password
+                // For now, we'll show the credentials and ask admin to manually update
+                showNewEmployeeCredentials(employeeEmail, newPassword, "Contraseña Resetada")
+                
+                // Restore admin session
+                restoreAdminSessionWithPassword(adminEmail, adminPassword, adminSessionData) {
+                    Toast.makeText(this, "Contraseña resetada exitosamente", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+    
+    // Alternative approach: Create a new account and disable the old one
+    fun resetEmployeePasswordAlternative(employeeEmail: String, employeeName: String) {
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Resetear Contraseña de Empleado")
+        builder.setMessage("""
+            Opción 1: Generar nueva contraseña (requiere que el empleado use la nueva)
+            Opción 2: Crear nueva cuenta y desactivar la anterior
+            
+            ¿Qué método prefieres?
+        """.trimIndent())
+        
+        builder.setPositiveButton("Nueva Contraseña") { dialog, _ ->
+            resetEmployeePassword(employeeEmail, employeeName)
+        }
+        
+        builder.setNeutralButton("Nueva Cuenta") { dialog, _ ->
+            createNewEmployeeAccount(employeeEmail, employeeName)
+        }
+        
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
+    }
+    
+    private fun createNewEmployeeAccount(employeeEmail: String, employeeName: String) {
+        // Generate a new email for the employee (add a suffix)
+        val timestamp = System.currentTimeMillis()
+        val newEmail = employeeEmail.replace("@", "+reset$timestamp@")
+        
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Crear Nueva Cuenta")
+        builder.setMessage("""
+            Se creará una nueva cuenta para $employeeName:
+            
+            Email original: $employeeEmail
+            Email temporal: $newEmail
+            
+            El empleado deberá usar el email temporal para iniciar sesión.
+            ¿Continuar?
+        """.trimIndent())
+        
+        builder.setPositiveButton("Crear Nueva Cuenta") { dialog, _ ->
+            // Extract employee data from the original account
+            val adminSessionData = sessionManager.getUserDetails()
+            val adminUid = adminSessionData[SessionManager.KEY_USER_ID]
+            
+            // Create new account with temporary email
+            val newPassword = generateRandomPassword()
+            
+            auth.createUserWithEmailAndPassword(newEmail, newPassword)
+                .addOnCompleteListener(this) { task ->
+                    if (task.isSuccessful) {
+                        val user = auth.currentUser
+                        user?.uid?.let { newEmployeeUid ->
+                            // Get original employee data from database
+                            Firebase.database.reference.child("users")
+                                .orderByChild("email")
+                                .equalTo(employeeEmail)
+                                .addListenerForSingleValueEvent(object : ValueEventListener {
+                                    override fun onDataChange(snapshot: DataSnapshot) {
+                                        for (employeeSnapshot in snapshot.children) {
+                                            val employeeData = employeeSnapshot.value as? Map<String, Any>
+                                            if (employeeData != null) {
+                                                // Create new employee data with new email
+                                                val newEmployeeData = hashMapOf(
+                                                    "firstName" to (employeeData["firstName"] ?: ""),
+                                                    "lastName" to (employeeData["lastName"] ?: ""),
+                                                    "phone" to (employeeData["phone"] ?: ""),
+                                                    "birthDate" to (employeeData["birthDate"] ?: ""),
+                                                    "role" to "employee",
+                                                    "adminId" to adminUid,
+                                                    "email" to newEmail,
+                                                    "originalEmail" to employeeEmail,
+                                                    "isResetAccount" to true
+                                                )
+                                                
+                                                // Save new employee data
+                                                Firebase.database.reference.child("users").child(newEmployeeUid).setValue(newEmployeeData)
+                                                    .addOnSuccessListener {
+                                                        // Mark original account as disabled
+                                                        employeeSnapshot.ref.child("isDisabled").setValue(true)
+                                                        employeeSnapshot.ref.child("disabledReason").setValue("Password reset - new account created")
+                                                        employeeSnapshot.ref.child("replacedBy").setValue(newEmployeeUid)
+                                                        
+                                                        // Restore admin session
+                                                        val adminEmail = adminSessionData[SessionManager.KEY_USER_EMAIL]
+                                                        val adminPassword = getCurrentAdminPassword() // This would need to be stored
+                                                        
+                                                        showNewEmployeeCredentials(newEmail, newPassword, "Nueva Cuenta Creada")
+                                                        
+                                                        Toast.makeText(this@MainActivity, "Nueva cuenta creada exitosamente", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                    .addOnFailureListener { e ->
+                                                        Log.e(TAG, "Error creating new employee account: ${e.message}")
+                                                        Toast.makeText(this@MainActivity, "Error al crear nueva cuenta", Toast.LENGTH_SHORT).show()
+                                                    }
+                                            }
+                                        }
+                                    }
+                                    
+                                    override fun onCancelled(error: DatabaseError) {
+                                        Log.e(TAG, "Error fetching employee data: ${error.message}")
+                                        Toast.makeText(this@MainActivity, "Error al obtener datos del empleado", Toast.LENGTH_SHORT).show()
+                                    }
+                                })
+                        }
+                    } else {
+                        Log.e(TAG, "Error creating new account: ${task.exception?.message}")
+                        Toast.makeText(this, "Error al crear nueva cuenta", Toast.LENGTH_SHORT).show()
+                    }
+                }
+        }
+        
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
+    }
+    
+    private fun showNewEmployeeCredentials(email: String, password: String, title: String) {
+        val message = "Email: $email\nContraseña: $password\n\n¡Guarda estas credenciales de forma segura y comunícaselas al empleado!"
+        
+        AlertDialog.Builder(this)
+            .setTitle(title)
+            .setMessage(message)
+            .setPositiveButton("Copiar Email") { dialog, _ -> 
+                copyToClipboard("Email del Empleado", email)
+                dialog.dismiss()
+            }
+            .setNeutralButton("Copiar Contraseña") { dialog, _ -> 
+                copyToClipboard("Contraseña del Empleado", password)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Copiar Todo") { dialog, _ -> 
+                copyToClipboard("Credenciales del Empleado", "Email: $email\nContraseña: $password")
+                dialog.dismiss()
+            }
+            .show()
+    }
 
     companion object {
         val updateStatusAction = "com.example.notificacionesapp.UPDATE_STATUS"

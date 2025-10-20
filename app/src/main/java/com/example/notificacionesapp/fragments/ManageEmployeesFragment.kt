@@ -55,6 +55,10 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
                 override fun onDeleteClick(employee: EmployeeModel) {
                     showDeleteEmployeeConfirmDialog(employee)
                 }
+                
+                override fun onResetPasswordClick(employee: EmployeeModel) {
+                    showResetPasswordDialog(employee)
+                }
             }
         )
 
@@ -263,6 +267,20 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
                     Toast.LENGTH_SHORT).show()
             }
     }
+    
+    private fun showResetPasswordDialog(employee: EmployeeModel) {
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Resetear Contraseña")
+        builder.setMessage("¿Estás seguro de que deseas resetear la contraseña de ${employee.firstName} ${employee.lastName}?")
+        
+        builder.setPositiveButton("Resetear") { dialog, _ ->
+            val mainActivity = activity as? MainActivity
+            mainActivity?.resetEmployeePasswordAlternative(employee.email, "${employee.firstName} ${employee.lastName}")
+        }
+        
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
+    }
 
     // Modelo de datos para empleado
     data class EmployeeModel(
@@ -278,6 +296,7 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
     interface EmployeeClickListener {
         fun onEditClick(employee: EmployeeModel)
         fun onDeleteClick(employee: EmployeeModel)
+        fun onResetPasswordClick(employee: EmployeeModel)
     }
 
     // Adaptador para RecyclerView
@@ -303,6 +322,7 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
             private val emailText: TextView = itemView.findViewById(R.id.employeeEmailText)
             private val phoneText: TextView = itemView.findViewById(R.id.employeePhoneText)
             private val editButton: MaterialButton = itemView.findViewById(R.id.editEmployeeButton)
+            private val resetPasswordButton: MaterialButton = itemView.findViewById(R.id.resetPasswordButton)
             private val deleteButton: MaterialButton = itemView.findViewById(R.id.deleteEmployeeButton)
 
             fun bind(employee: EmployeeModel) {
@@ -312,6 +332,10 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
 
                 editButton.setOnClickListener {
                     listener.onEditClick(employee)
+                }
+
+                resetPasswordButton.setOnClickListener {
+                    listener.onResetPasswordClick(employee)
                 }
 
                 deleteButton.setOnClickListener {
