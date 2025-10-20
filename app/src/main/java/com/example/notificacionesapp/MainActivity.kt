@@ -20,6 +20,7 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import dagger.hilt.android.AndroidEntryPoint
 import com.example.notificacionesapp.databinding.ActivityMainRedesignedBinding
 import com.example.notificacionesapp.fragments.AccountFragment
 import com.example.notificacionesapp.fragments.HistoryFragment
@@ -40,6 +41,7 @@ import com.google.firebase.database.ktx.database
 import java.util.Locale
 import java.util.UUID
 
+@AndroidEntryPoint
 class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     lateinit var binding: ActivityMainRedesignedBinding

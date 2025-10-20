@@ -15,12 +15,14 @@ import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import dagger.hilt.android.AndroidEntryPoint
 import com.example.notificacionesapp.notification.NotificationProcessorRegistry
 import com.example.notificacionesapp.util.AmountSettings
 import com.example.notificacionesapp.util.NotificationHistoryManager
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 
+@AndroidEntryPoint
 class NotificationService : NotificationListenerService() {
 
     private var tts: TextToSpeech? = null
