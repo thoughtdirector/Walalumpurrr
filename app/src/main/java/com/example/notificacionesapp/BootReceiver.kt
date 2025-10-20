@@ -20,7 +20,8 @@ class BootReceiver : BroadcastReceiver() {
                 val shouldBeActive = scheduleManager.shouldServiceBeActive()
                 NotificationService.isServiceActive = shouldBeActive
 
-                // Iniciar el servicio si corresponde
+                // Only start service if schedule is enabled and it should be active
+                // This reduces unnecessary service starts on boot
                 if (shouldBeActive) {
                     val serviceIntent = Intent(context, NotificationService::class.java).apply {
                         action = NotificationService.ACTION_START_SERVICE
@@ -36,7 +37,11 @@ class BootReceiver : BroadcastReceiver() {
                     } catch (e: Exception) {
                         Log.e("BootReceiver", "Error al iniciar servicio después de reinicio: ${e.message}")
                     }
+                } else {
+                    Log.d("BootReceiver", "Servicio no iniciado - fuera de horario programado")
                 }
+            } else {
+                Log.d("BootReceiver", "Programación deshabilitada - no se inicia servicio")
             }
         }
     }

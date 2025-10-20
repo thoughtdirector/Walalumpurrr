@@ -369,10 +369,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         }
     }
 
-    // Método para probar el TTS
+    // Método para probar el TTS - optimized to reduce battery usage
     fun testTTS(text: String) {
-        if (::tts.isInitialized) {
+        if (::tts.isInitialized && tts != null) {
+            try {
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "test_id")
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Error testing TTS: ${e.message}")
+            }
         }
     }
 
@@ -541,7 +545,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         adminPassword: String
     ) {
         val password = generateRandomPassword()
-        
+
         // Store admin session data before creating employee
         val adminSessionData = sessionManager.getUserDetails()
         val adminUid = adminSessionData[SessionManager.KEY_USER_ID]
@@ -572,14 +576,14 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                                 
                                 // Now restore admin session using the password
                                 restoreAdminSessionWithPassword(adminEmail, adminPassword, adminSessionData) {
-                                    showEmployeeCredentials(email, password)
+                                showEmployeeCredentials(email, password)
                                 }
                             }
                             .addOnFailureListener { e ->
                                 Log.e(TAG, "Error writing employee data to database", e)
                                 // Still try to restore admin session
                                 restoreAdminSessionWithPassword(adminEmail, adminPassword, adminSessionData) {
-                                    Toast.makeText(this, "Error al guardar los datos del empleado.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(this, "Error al guardar los datos del empleado.", Toast.LENGTH_SHORT).show()
                                 }
                             }
                     }
@@ -596,7 +600,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
     }
-    
+
     // Helper function to generate a random password
     private fun generateRandomPassword(length: Int = 12): String {
         val allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -604,7 +608,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .map { allowedChars.random() }
             .joinToString("")
     }
-    
+
     // Helper function to restore admin session with password
     private fun restoreAdminSessionWithPassword(
         adminEmail: String?,

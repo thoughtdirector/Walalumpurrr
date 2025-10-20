@@ -6,11 +6,10 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.AudioManager
+// Removed unused import: AudioManager
 import android.os.Build
-import android.os.Handler
 import android.os.IBinder
-import android.os.Looper
+// Removed unused imports: Handler, Looper
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.speech.tts.TextToSpeech
@@ -55,12 +54,7 @@ class NotificationService : NotificationListenerService() {
     }
 
     private fun initializeTTS() {
-        // Configurar el volumen al máximo para asegurar que se escuche
-        val audioManager = getSystemService(AUDIO_SERVICE) as AudioManager
-        val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume / 2, 0)
-
-        // Inicializar TTS de manera segura
+        // Inicializar TTS de manera segura sin modificar volumen del sistema
         try {
             tts = TextToSpeech(applicationContext) { status ->
                 if (status == TextToSpeech.SUCCESS) {
@@ -73,11 +67,12 @@ class NotificationService : NotificationListenerService() {
                         Log.d("NotificationService", "TTS inicializado correctamente")
                         ttsInitialized = true
 
-                        Handler(Looper.getMainLooper()).postDelayed({
-                            if (isServiceActive) {
-                                speakOut("Servicio de lectura de notificaciones activado")
-                            }
-                        }, 1000)
+                        // Remove automatic speaking on initialization to reduce battery usage
+                        // Handler(Looper.getMainLooper()).postDelayed({
+                        //     if (isServiceActive) {
+                        //         speakOut("Servicio de lectura de notificaciones activado")
+                        //     }
+                        // }, 1000)
                     }
                 } else {
                     Log.e("NotificationService", "Error al inicializar TTS: código = $status")
@@ -130,7 +125,7 @@ class NotificationService : NotificationListenerService() {
             e.printStackTrace()
         }
 
-        return START_STICKY
+        return START_NOT_STICKY // Changed from START_STICKY to reduce battery usage
     }
 
     private fun startForeground() {
@@ -276,16 +271,29 @@ class NotificationService : NotificationListenerService() {
 
     override fun onDestroy() {
         try {
+            // Clean up TTS resources
             if (tts != null) {
                 tts?.let { textToSpeech ->
                     textToSpeech.stop()
                     textToSpeech.shutdown()
                 }
+                tts = null
                 ttsInitialized = false
             }
             
-            // Limpiar configuración de apps
+            // Clear app settings to free memory
             appSettings.clear()
+            
+            // Stop foreground service if running
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            } else {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            }
+            
+            // Mark service as inactive
+            isServiceActive = false
             
             super.onDestroy()
         } catch (e: Exception) {
