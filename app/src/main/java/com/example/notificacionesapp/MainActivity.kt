@@ -497,15 +497,63 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
         phone: String,
         birthDate: String
     ) {
+        // First, ask for admin password to restore session later
+        showAdminPasswordDialog(email, firstName, lastName, phone, birthDate)
+    }
+    
+    private fun showAdminPasswordDialog(
+        email: String,
+        firstName: String,
+        lastName: String,
+        phone: String,
+        birthDate: String
+    ) {
+        val adminEmail = sessionManager.getUserDetails()[SessionManager.KEY_USER_EMAIL]
+        
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Confirmar Contraseña de Administrador")
+        builder.setMessage("Para crear la cuenta del empleado, necesitamos confirmar tu contraseña de administrador:")
+        
+        val input = android.widget.EditText(this)
+        input.hint = "Contraseña de administrador"
+        input.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        builder.setView(input)
+        
+        builder.setPositiveButton("Crear Empleado") { dialog, _ ->
+            val adminPassword = input.text.toString()
+            if (adminPassword.isNotEmpty()) {
+                createEmployeeWithPasswordConfirmation(email, firstName, lastName, phone, birthDate, adminPassword)
+            } else {
+                Toast.makeText(this, "Debes ingresar tu contraseña de administrador", Toast.LENGTH_SHORT).show()
+            }
+        }
+        
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
+    }
+    
+    private fun createEmployeeWithPasswordConfirmation(
+        email: String,
+        firstName: String,
+        lastName: String,
+        phone: String,
+        birthDate: String,
+        adminPassword: String
+    ) {
         val password = generateRandomPassword()
+        
+        // Store admin session data before creating employee
+        val adminSessionData = sessionManager.getUserDetails()
+        val adminUid = adminSessionData[SessionManager.KEY_USER_ID]
+        val adminEmail = adminSessionData[SessionManager.KEY_USER_EMAIL]
+        val adminRole = adminSessionData[SessionManager.KEY_USER_ROLE]
 
+        // Create employee account
         auth.createUserWithEmailAndPassword(email, password)
             .addOnCompleteListener(this) { task ->
                 if (task.isSuccessful) {
                     Log.d(TAG, "createEmployeeAccount:success")
                     val user = auth.currentUser
-
-                    val adminUid = auth.currentUser?.uid
 
                     user?.uid?.let { employeeUid ->
                         val employeeData = hashMapOf(
@@ -521,11 +569,18 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                         Firebase.database.reference.child("users").child(employeeUid).setValue(employeeData)
                             .addOnSuccessListener {
                                 Log.d(TAG, "Employee data written to database")
-                                showEmployeeCredentials(email, password)
+                                
+                                // Now restore admin session using the password
+                                restoreAdminSessionWithPassword(adminEmail, adminPassword, adminSessionData) {
+                                    showEmployeeCredentials(email, password)
+                                }
                             }
                             .addOnFailureListener { e ->
                                 Log.e(TAG, "Error writing employee data to database", e)
-                                Toast.makeText(this, "Error al guardar los datos del empleado.", Toast.LENGTH_SHORT).show()
+                                // Still try to restore admin session
+                                restoreAdminSessionWithPassword(adminEmail, adminPassword, adminSessionData) {
+                                    Toast.makeText(this, "Error al guardar los datos del empleado.", Toast.LENGTH_SHORT).show()
+                                }
                             }
                     }
                 } else {
@@ -541,7 +596,7 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
                 }
             }
     }
-
+    
     // Helper function to generate a random password
     private fun generateRandomPassword(length: Int = 12): String {
         val allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -549,14 +604,85 @@ class MainActivity : AppCompatActivity(), TextToSpeech.OnInitListener {
             .map { allowedChars.random() }
             .joinToString("")
     }
+    
+    // Helper function to restore admin session with password
+    private fun restoreAdminSessionWithPassword(
+        adminEmail: String?,
+        adminPassword: String,
+        adminSessionData: HashMap<String, String?>,
+        callback: () -> Unit
+    ) {
+        if (adminEmail != null) {
+            // Sign out the current employee user
+            auth.signOut()
+            
+            // Sign back in as admin
+            auth.signInWithEmailAndPassword(adminEmail, adminPassword)
+                .addOnCompleteListener(this) { task ->
+                    if (task.isSuccessful) {
+                        Log.d(TAG, "Admin session restored successfully")
+                        
+                        // Restore session manager data
+                        val adminUid = adminSessionData[SessionManager.KEY_USER_ID]
+                        val adminRole = adminSessionData[SessionManager.KEY_USER_ROLE]
+                        
+                        if (adminUid != null) {
+                            sessionManager.createLoginSession(adminUid, adminEmail, adminRole ?: "admin")
+                            userRole = adminRole
+                            
+                            // Update UI to reflect admin session
+                            setupNavigation()
+                            
+                            // Reload the current fragment to reflect admin state
+                            currentFragment?.let { fragment ->
+                                loadFragment(fragment)
+                            }
+                            
+                            callback()
+                        } else {
+                            Log.e(TAG, "Could not restore admin session - missing UID")
+                            callback()
+                        }
+                    } else {
+                        Log.e(TAG, "Failed to restore admin session: ${task.exception?.message}")
+                        Toast.makeText(this, "Error al restaurar sesión de administrador", Toast.LENGTH_SHORT).show()
+                        callback()
+                    }
+                }
+        } else {
+            Log.e(TAG, "Could not restore admin session - missing email")
+            callback()
+        }
+    }
 
-    // Helper function to display employee credentials
+    // Helper function to display employee credentials with copy buttons
     private fun showEmployeeCredentials(email: String, password: String) {
+        val message = "Email: $email\nContraseña: $password\n\n¡Guarda estas credenciales de forma segura y comunícaselas al empleado!"
+        
         AlertDialog.Builder(this)
             .setTitle("Credenciales del Empleado")
-            .setMessage("Email: $email\nContraseña: $password\n\n¡Guarda estas credenciales de forma segura y comunícaselas al empleado!")
-            .setPositiveButton("OK") { dialog, _ -> dialog.dismiss() }
+            .setMessage(message)
+            .setPositiveButton("Copiar Email") { dialog, _ -> 
+                copyToClipboard("Email del Empleado", email)
+                dialog.dismiss()
+            }
+            .setNeutralButton("Copiar Contraseña") { dialog, _ -> 
+                copyToClipboard("Contraseña del Empleado", password)
+                dialog.dismiss()
+            }
+            .setNegativeButton("Copiar Todo") { dialog, _ -> 
+                copyToClipboard("Credenciales del Empleado", "Email: $email\nContraseña: $password")
+                dialog.dismiss()
+            }
             .show()
+    }
+    
+    // Helper function to copy text to clipboard
+    private fun copyToClipboard(label: String, text: String) {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = android.content.ClipData.newPlainText(label, text)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(this, "$label copiado al portapapeles", Toast.LENGTH_SHORT).show()
     }
 
     companion object {
