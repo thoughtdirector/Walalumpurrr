@@ -1,1 +1,48 @@
-/build
+# App-specific .gitignore
+
+# Build outputs
+build/
+outputs/
+
+# Generated files
+*.dex
+*.class
+
+# Local configuration
+local.properties
+
+# Proguard
+proguard/
+
+# Lint
+lint/
+
+# Test results
+test-results/
+test-report.html
+
+# Coverage
+coverage/
+
+# Firebase
+google-services.json
+
+# Keystore files
+*.jks
+*.keystore
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
