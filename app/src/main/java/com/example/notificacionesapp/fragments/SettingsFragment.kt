@@ -3,6 +3,8 @@ package com.example.notificacionesapp.fragments
 import android.content.Context
 import android.content.Intent
 import android.speech.tts.TextToSpeech
+import android.text.Editable
+import android.text.TextWatcher
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.ViewGroup
@@ -13,6 +15,8 @@ import com.example.notificacionesapp.R
 import com.example.notificacionesapp.ThemeActivity
 import com.example.notificacionesapp.databinding.FragmentSettingsBinding
 import com.example.notificacionesapp.util.AmountSettings
+import java.text.NumberFormat
+import java.util.Locale
 
 class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
 
@@ -28,10 +32,30 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
     override fun setupUI() {
         amountSettings = AmountSettings(requireContext())
 
-        // Cargar configuraciones guardadas
         loadSettings()
 
-        // Configurar botones
+        // Formatear monto con puntos cada 3 dígitos mientras el usuario escribe
+        binding.amountInput.addTextChangedListener(object : TextWatcher {
+            private var isEditing = false
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                if (isEditing) return
+                isEditing = true
+                val raw = s?.toString()?.replace(Regex("[^0-9]"), "") ?: ""
+                if (raw.isNotEmpty()) {
+                    try {
+                        val formatted = NumberFormat.getIntegerInstance(Locale("es", "CO")).format(raw.toLong())
+                        binding.amountInput.removeTextChangedListener(this)
+                        binding.amountInput.setText(formatted)
+                        binding.amountInput.setSelection(formatted.length)
+                        binding.amountInput.addTextChangedListener(this)
+                    } catch (_: Exception) {}
+                }
+                isEditing = false
+            }
+        })
+
         binding.saveSettingsButton.setOnClickListener {
             saveSettings()
         }
@@ -39,9 +63,6 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
         binding.testServiceButton.setOnClickListener {
             testService()
         }
-
-        // El botón de crear empleado ya no está en este fragmento
-        // Se ha movido al ProfileFragment
     }
 
     private fun loadSettings() {
@@ -58,9 +79,17 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             // Cargar configuración de tema
             binding.darkModeSwitch.isChecked = themePrefs.getBoolean("dark_mode", false)
 
-            // Cargar configuración de montos
-            binding.amountLimitSwitch.isChecked = amountSettings.isAmountLimitEnabled()
-            binding.amountInput.setText(amountSettings.getAmountThreshold().toString())
+            // Cargar configuración de montos (con manejo seguro de tipos)
+            try {
+                binding.amountLimitSwitch.isChecked = amountSettings.isAmountLimitEnabled()
+                val threshold = amountSettings.getAmountThreshold()
+                val formatted = NumberFormat.getIntegerInstance(Locale("es", "CO")).format(threshold)
+                binding.amountInput.setText(formatted)
+            } catch (e: Exception) {
+                binding.amountLimitSwitch.isChecked = false
+                binding.amountInput.setText("100.000")
+                Log.w("SettingsFragment", "Error al cargar amount settings: ${e.message}")
+            }
         } catch (e: Exception) {
             Toast.makeText(requireContext(), "Error al cargar configuración: ${e.message}", Toast.LENGTH_SHORT).show()
         }
@@ -82,10 +111,13 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             // Guardar configuración de montos
             amountSettings.setAmountLimitEnabled(binding.amountLimitSwitch.isChecked)
             try {
-                val threshold = binding.amountInput.text.toString().toInt()
+                val rawText = binding.amountInput.text?.toString()?.replace(Regex("[^0-9]"), "") ?: ""
+                val threshold = if (rawText.isNotEmpty()) rawText.toLong().coerceIn(0, Int.MAX_VALUE.toLong()).toInt()
+                               else 100000
                 amountSettings.setAmountThreshold(threshold)
             } catch (e: Exception) {
-                Toast.makeText(requireContext(), "Error en el valor del monto. Usando valor predeterminado.", Toast.LENGTH_SHORT).show()
+                Log.w("SettingsFragment", "Error al parsear monto: ${e.message}")
+                amountSettings.setAmountThreshold(100000)
             }
 
             // Notificar al servicio sobre los cambios

@@ -4,6 +4,8 @@ import android.content.Context
 import com.example.notificacionesapp.core.domain.Result
 import com.example.notificacionesapp.domain.model.Schedule
 import com.example.notificacionesapp.domain.model.ScheduledEvent
+import com.example.notificacionesapp.domain.model.getNextScheduledEvent
+import com.example.notificacionesapp.domain.model.isCurrentlyActive
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,7 +59,8 @@ class ScheduleRepositoryImpl @Inject constructor(
     override suspend fun setScheduleEnabled(enabled: Boolean): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                val currentSchedule = getSchedule().getDataOrNull() ?: Schedule()
+                val scheduleResult = getSchedule()
+                val currentSchedule = if (scheduleResult is Result.Success) scheduleResult.data else Schedule()
                 val updatedSchedule = currentSchedule.copy(isEnabled = enabled)
                 saveSchedule(updatedSchedule)
                 Result.Success(Unit)
@@ -75,7 +78,8 @@ class ScheduleRepositoryImpl @Inject constructor(
     ): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                val currentSchedule = getSchedule().getDataOrNull() ?: Schedule()
+                val scheduleResult = getSchedule()
+                val currentSchedule = if (scheduleResult is Result.Success) scheduleResult.data else Schedule()
                 val updatedSchedule = currentSchedule.copy(
                     startHour = startHour,
                     startMinute = startMinute,
@@ -93,7 +97,8 @@ class ScheduleRepositoryImpl @Inject constructor(
     override suspend fun updateEnabledDays(enabledDays: Set<Int>): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                val currentSchedule = getSchedule().getDataOrNull() ?: Schedule()
+                val scheduleResult = getSchedule()
+                val currentSchedule = if (scheduleResult is Result.Success) scheduleResult.data else Schedule()
                 val updatedSchedule = currentSchedule.copy(enabledDays = enabledDays)
                 saveSchedule(updatedSchedule)
                 Result.Success(Unit)
@@ -106,7 +111,8 @@ class ScheduleRepositoryImpl @Inject constructor(
     override suspend fun isScheduleActive(): Result<Boolean> {
         return withContext(Dispatchers.IO) {
             try {
-                val schedule = getSchedule().getDataOrNull() ?: Schedule()
+                val schemaResult = getSchedule()
+                val schedule = if (schemaResult is Result.Success) schemaResult.data else Schedule()
                 val isActive = schedule.isCurrentlyActive()
                 Result.Success(isActive)
             } catch (e: Exception) {
@@ -118,7 +124,8 @@ class ScheduleRepositoryImpl @Inject constructor(
     override suspend fun getNextScheduledEvent(): Result<ScheduledEvent?> {
         return withContext(Dispatchers.IO) {
             try {
-                val schedule = getSchedule().getDataOrNull() ?: Schedule()
+                val scheduleResult = getSchedule()
+                val schedule = if (scheduleResult is Result.Success) scheduleResult.data else Schedule()
                 val nextEvent = schedule.getNextScheduledEvent()
                 Result.Success(nextEvent)
             } catch (e: Exception) {

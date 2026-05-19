@@ -1,67 +1,114 @@
 package com.example.notificacionesapp.data.repository
 
+import com.example.notificacionesapp.core.domain.AuthUserInfo
 import com.example.notificacionesapp.core.domain.Result
 import com.example.notificacionesapp.domain.model.User
 import com.example.notificacionesapp.domain.model.UserRole
 import com.example.notificacionesapp.domain.repository.AuthRepository
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseUser
-import com.google.firebase.auth.GoogleAuthProvider
-import com.google.firebase.database.FirebaseDatabase
-import kotlinx.coroutines.tasks.await
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.gotrue.auth
+import io.github.jan.supabase.gotrue.providers.Google
+import io.github.jan.supabase.gotrue.providers.builtin.Email
+import io.github.jan.supabase.gotrue.providers.builtin.IDToken
+import io.github.jan.supabase.postgrest.from
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Implementation of AuthRepository using Firebase
- */
+@Serializable
+data class UserDto(
+    val id: String,
+    val email: String,
+    @SerialName("firstname") val firstName: String = "",
+    @SerialName("lastname") val lastName: String = "",
+    val phone: String = "",
+    @SerialName("birthdate") val birthDate: String = "",
+    val role: String = "employee",
+    @SerialName("adminid") val adminId: String? = null,
+    @SerialName("isdisabled") val isDisabled: Boolean = false,
+    @SerialName("disabledreason") val disabledReason: String? = null,
+    @SerialName("replacedby") val replacedBy: String? = null,
+    @SerialName("isresetaccount") val isResetAccount: Boolean = false,
+    @SerialName("originalemail") val originalEmail: String? = null
+)
+
+fun UserDto.toDomainUser(): User = User(
+    id = id,
+    email = email,
+    firstName = firstName,
+    lastName = lastName,
+    phone = phone,
+    birthDate = birthDate,
+    role = try { UserRole.valueOf(role.uppercase()) } catch (_: Exception) { UserRole.EMPLOYEE },
+    adminId = adminId,
+    isDisabled = isDisabled,
+    disabledReason = disabledReason,
+    replacedBy = replacedBy,
+    isResetAccount = isResetAccount,
+    originalEmail = originalEmail
+)
+
 @Singleton
 class AuthRepositoryImpl @Inject constructor(
-    private val firebaseAuth: FirebaseAuth,
-    private val firebaseDatabase: FirebaseDatabase
+    private val supabaseClient: SupabaseClient,
+    private val sessionManager: com.example.notificacionesapp.SessionManager
 ) : AuthRepository {
 
-    override suspend fun getCurrentUser(): FirebaseUser? {
-        return firebaseAuth.currentUser
+    override suspend fun getCurrentUser(): AuthUserInfo? {
+        return try {
+            val user = supabaseClient.auth.currentUserOrNull()
+            user?.let { AuthUserInfo(id = it.id, email = it.email) }
+        } catch (e: Exception) {
+            null
+        }
     }
 
-    override suspend fun signInWithEmailAndPassword(email: String, password: String): Result<FirebaseUser> {
+    override suspend fun signInWithEmailAndPassword(email: String, password: String): Result<AuthUserInfo> {
         return try {
-            val result = firebaseAuth.signInWithEmailAndPassword(email, password).await()
-            val user = result.user
+            supabaseClient.auth.signInWith(Email) {
+                this.email = email
+                this.password = password
+            }
+            val user = supabaseClient.auth.currentUserOrNull()
             if (user != null) {
-                Result.Success(user)
+                Result.Success(AuthUserInfo(id = user.id, email = user.email))
             } else {
-                Result.Error(Exception("Sign in failed: User is null"))
+                Result.Error(Exception("Sign in failed: user is null"))
             }
         } catch (e: Exception) {
             Result.Error(e)
         }
     }
 
-    override suspend fun signUpWithEmailAndPassword(email: String, password: String): Result<FirebaseUser> {
+    override suspend fun signUpWithEmailAndPassword(email: String, password: String): Result<AuthUserInfo> {
         return try {
-            val result = firebaseAuth.createUserWithEmailAndPassword(email, password).await()
-            val user = result.user
+            supabaseClient.auth.signUpWith(Email) {
+                this.email = email
+                this.password = password
+            }
+            val user = supabaseClient.auth.currentUserOrNull()
             if (user != null) {
-                Result.Success(user)
+                Result.Success(AuthUserInfo(id = user.id, email = user.email))
             } else {
-                Result.Error(Exception("Sign up failed: User is null"))
+                Result.Success(AuthUserInfo(id = "", email = email)) // Sign-up may need email confirmation
             }
         } catch (e: Exception) {
             Result.Error(e)
         }
     }
 
-    override suspend fun signInWithGoogle(idToken: String): Result<FirebaseUser> {
+    override suspend fun signInWithGoogle(idToken: String): Result<AuthUserInfo> {
         return try {
-            val credential = GoogleAuthProvider.getCredential(idToken, null)
-            val result = firebaseAuth.signInWithCredential(credential).await()
-            val user = result.user
+            supabaseClient.auth.signInWith(IDToken) {
+                this.idToken = idToken
+                this.provider = Google
+            }
+            val user = supabaseClient.auth.currentUserOrNull()
             if (user != null) {
-                Result.Success(user)
+                Result.Success(AuthUserInfo(id = user.id, email = user.email))
             } else {
-                Result.Error(Exception("Google sign in failed: User is null"))
+                Result.Error(Exception("Google sign in failed: user is null"))
             }
         } catch (e: Exception) {
             Result.Error(e)
@@ -70,7 +117,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun signOut(): Result<Unit> {
         return try {
-            firebaseAuth.signOut()
+            supabaseClient.auth.signOut()
             Result.Success(Unit)
         } catch (e: Exception) {
             Result.Error(e)
@@ -78,40 +125,27 @@ class AuthRepositoryImpl @Inject constructor(
     }
 
     override suspend fun createUserAccount(
-        user: FirebaseUser,
+        user: AuthUserInfo,
         firstName: String,
         lastName: String,
         phone: String,
         birthDate: String,
-        role: String
+        role: String,
+        adminId: String?
     ): Result<User> {
         return try {
-            val userData = hashMapOf(
-                "firstName" to firstName,
-                "lastName" to lastName,
-                "phone" to phone,
-                "birthDate" to birthDate,
-                "role" to role,
-                "email" to user.email
-            )
-
-            firebaseDatabase.reference
-                .child("users")
-                .child(user.uid)
-                .setValue(userData)
-                .await()
-
-            val domainUser = User(
-                id = user.uid,
+            val userDto = UserDto(
+                id = user.id,
                 email = user.email ?: "",
                 firstName = firstName,
                 lastName = lastName,
                 phone = phone,
                 birthDate = birthDate,
-                role = UserRole.valueOf(role.uppercase())
+                role = role,
+                adminId = adminId
             )
-
-            Result.Success(domainUser)
+            supabaseClient.from("users").upsert(userDto)
+            Result.Success(userDto.toDomainUser())
         } catch (e: Exception) {
             Result.Error(e)
         }
@@ -119,34 +153,11 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun getUserById(userId: String): Result<User> {
         return try {
-            val snapshot = firebaseDatabase.reference
-                .child("users")
-                .child(userId)
-                .get()
-                .await()
-
-            if (snapshot.exists()) {
-                val userData = snapshot.value as? Map<String, Any>
-                if (userData != null) {
-                    val user = User(
-                        id = userId,
-                        email = userData["email"] as? String ?: "",
-                        firstName = userData["firstName"] as? String ?: "",
-                        lastName = userData["lastName"] as? String ?: "",
-                        phone = userData["phone"] as? String ?: "",
-                        birthDate = userData["birthDate"] as? String ?: "",
-                        role = UserRole.valueOf((userData["role"] as? String ?: "EMPLOYEE").uppercase()),
-                        adminId = userData["adminId"] as? String,
-                        isDisabled = userData["isDisabled"] as? Boolean ?: false,
-                        disabledReason = userData["disabledReason"] as? String,
-                        replacedBy = userData["replacedBy"] as? String,
-                        isResetAccount = userData["isResetAccount"] as? Boolean ?: false,
-                        originalEmail = userData["originalEmail"] as? String
-                    )
-                    Result.Success(user)
-                } else {
-                    Result.Error(Exception("User data is null"))
-                }
+            val users: List<UserDto> = supabaseClient.from("users")
+                .select { filter { eq("id", userId) } }
+                .decodeList()
+            if (users.isNotEmpty()) {
+                Result.Success(users.first().toDomainUser())
             } else {
                 Result.Error(Exception("User not found"))
             }
@@ -157,26 +168,22 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun updateUser(user: User): Result<User> {
         return try {
-            val userData = hashMapOf(
-                "firstName" to user.firstName,
-                "lastName" to user.lastName,
-                "phone" to user.phone,
-                "birthDate" to user.birthDate,
-                "role" to user.role.name.lowercase(),
-                "email" to user.email,
-                "isDisabled" to user.isDisabled,
-                "disabledReason" to user.disabledReason,
-                "replacedBy" to user.replacedBy,
-                "isResetAccount" to user.isResetAccount,
-                "originalEmail" to user.originalEmail
+            val userDto = UserDto(
+                id = user.id,
+                email = user.email,
+                firstName = user.firstName,
+                lastName = user.lastName,
+                phone = user.phone,
+                birthDate = user.birthDate,
+                role = user.role.name.lowercase(),
+                adminId = user.adminId,
+                isDisabled = user.isDisabled,
+                disabledReason = user.disabledReason,
+                replacedBy = user.replacedBy,
+                isResetAccount = user.isResetAccount,
+                originalEmail = user.originalEmail
             )
-
-            firebaseDatabase.reference
-                .child("users")
-                .child(user.id)
-                .updateChildren(userData)
-                .await()
-
+            supabaseClient.from("users").update(userDto) { filter { eq("id", user.id) } }
             Result.Success(user)
         } catch (e: Exception) {
             Result.Error(e)
@@ -185,11 +192,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun deleteUser(userId: String): Result<Unit> {
         return try {
-            firebaseDatabase.reference
-                .child("users")
-                .child(userId)
-                .removeValue()
-                .await()
+            supabaseClient.from("users").delete { filter { eq("id", userId) } }
             Result.Success(Unit)
         } catch (e: Exception) {
             Result.Error(e)
@@ -198,7 +201,7 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun resetPassword(email: String): Result<Unit> {
         return try {
-            firebaseAuth.sendPasswordResetEmail(email).await()
+            supabaseClient.auth.resetPasswordForEmail(email)
             Result.Success(Unit)
         } catch (e: Exception) {
             Result.Error(e)
@@ -207,14 +210,21 @@ class AuthRepositoryImpl @Inject constructor(
 
     override suspend fun userExists(email: String): Result<Boolean> {
         return try {
-            val snapshot = firebaseDatabase.reference
-                .child("users")
-                .orderByChild("email")
-                .equalTo(email)
-                .get()
-                .await()
+            val users: List<UserDto> = supabaseClient.from("users")
+                .select { filter { eq("email", email) } }
+                .decodeList()
+            Result.Success(users.isNotEmpty())
+        } catch (e: Exception) {
+            Result.Error(e)
+        }
+    }
 
-            Result.Success(snapshot.exists())
+    override suspend fun getUsersByAdminId(adminId: String): Result<List<User>> {
+        return try {
+            val users: List<UserDto> = supabaseClient.from("users")
+                .select { filter { eq("adminid", adminId) } }
+                .decodeList()
+            Result.Success(users.map { it.toDomainUser() })
         } catch (e: Exception) {
             Result.Error(e)
         }

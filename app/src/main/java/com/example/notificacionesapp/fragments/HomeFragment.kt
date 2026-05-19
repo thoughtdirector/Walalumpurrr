@@ -99,9 +99,23 @@ class HomeFragment : BaseFragment<FragmentHomeBinding>() {
                 updateStatus()
                 updateScheduleInfo()
                 updateDaysChips()
+                updateRoleInfo()
             } catch (e: Exception) {
                 Log.e("HomeFragment", "Error en updateUI: ${e.message}")
             }
+        }
+    }
+
+    private fun updateRoleInfo() {
+        val mainActivity = activity as MainActivity
+        val role = mainActivity.sessionManager.getUserRole() ?: "Desconocido"
+        val adminId = mainActivity.sessionManager.getAdminId()
+        
+        // Asumiendo que hay un TextView para el rol en el layout, si no, lo logueamos
+        Log.d("HomeFragment", "Rol actual: $role, AdminId: $adminId")
+        
+        if (role == "employee" && adminId != null) {
+            Toast.makeText(requireContext(), "Conectado al administrador: ${adminId.take(8)}...", Toast.LENGTH_SHORT).show()
         }
     }
     fun updateServiceState(active: Boolean) {

@@ -54,10 +54,6 @@
             android:exported="false"
             android:theme="@style/Theme.TransparentActivity" />
 
-        <activity
-            android:name=".AppSettingsActivity"
-            android:exported="false" />
-
         <service
             android:name=".NotificationService"
             android:label="@string/app_name"

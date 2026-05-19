@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
@@ -27,6 +28,7 @@ import com.example.notificacionesapp.fragments.ManageEmployeesFragment
 import com.example.notificacionesapp.fragments.ProfileFragment
 import com.example.notificacionesapp.fragments.ScheduleFragment
 import com.example.notificacionesapp.fragments.SettingsFragment
+import com.example.notificacionesapp.domain.model.isEmployee
 import com.example.notificacionesapp.presentation.viewmodel.AuthViewModel
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -48,9 +50,6 @@ class MainActivityNew : AppCompatActivity(), TextToSpeech.OnInitListener {
 
     @Inject
     lateinit var permissionManager: PermissionManager
-
-    @Inject
-    lateinit var authViewModel: AuthViewModel
 
     // Fragment management
     private var currentFragment: Fragment? = null

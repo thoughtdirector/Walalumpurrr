@@ -5,16 +5,24 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.notificacionesapp.adapter.NotificationAdapter
+import com.example.notificacionesapp.core.domain.Result
 import com.example.notificacionesapp.databinding.FragmentHistoryBinding
+import com.example.notificacionesapp.domain.repository.NotificationRepository
 import com.example.notificacionesapp.model.NotificationItem
 import com.example.notificacionesapp.util.NotificationHistoryManager
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
+
+    @Inject lateinit var notificationRepository: NotificationRepository
 
     private lateinit var notificationHistoryManager: NotificationHistoryManager
     private lateinit var adapter: NotificationAdapter
@@ -28,35 +36,93 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
     }
 
     override fun setupUI() {
-        // Inicializar el gestor de historial
         notificationHistoryManager = NotificationHistoryManager(requireContext())
 
-        // Configurar RecyclerView
         binding.historyRecyclerView.layoutManager = LinearLayoutManager(requireContext())
         adapter = NotificationAdapter()
         binding.historyRecyclerView.adapter = adapter
 
-        // Configurar el spinner
         setupCategorySpinner()
 
-        // Configurar botón de limpieza
         binding.clearHistoryButton.setOnClickListener {
+            lifecycleScope.launch {
+                notificationRepository.clearAllNotifications()
+            }
             notificationHistoryManager.clearHistory()
             updateNotificationsList()
         }
 
-        // Cargar el historial
-        updateNotificationsList()
+        loadSupabaseNotifications()
+    }
+
+    private fun loadSupabaseNotifications() {
+        lifecycleScope.launch {
+            when (val result = notificationRepository.getAllNotifications()) {
+                is Result.Success -> {
+                    val notifications = result.data
+                    if (notifications.isNotEmpty()) {
+                        val items = notifications.map { n ->
+                            NotificationItem(
+                                appName = n.appName,
+                                title = n.title,
+                                content = n.content,
+                                timestamp = n.timestamp.time,
+                                sender = n.sender,
+                                amount = n.amount
+                            )
+                        }
+                        showNotifications(items)
+                    } else {
+                        updateNotificationsList()
+                    }
+                }
+                is Result.Error -> {
+                    updateNotificationsList()
+                }
+                is Result.Loading -> {}
+            }
+        }
     }
 
     private fun setupCategorySpinner() {
         binding.categorySpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
-                updateNotificationsList()
+                filterOrReload()
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
 
-            override fun onNothingSelected(parent: AdapterView<*>?) {
-                // No es necesario hacer nada
+    private fun filterOrReload() {
+        val selectedCategory = binding.categorySpinner.selectedItem.toString()
+        lifecycleScope.launch {
+            when (val result = notificationRepository.getAllNotifications()) {
+                is Result.Success -> {
+                    val filtered = if (selectedCategory == "Todas") {
+                        result.data
+                    } else {
+                        result.data.filter { it.appName.equals(selectedCategory, ignoreCase = true) }
+                    }
+                    if (filtered.isNotEmpty()) {
+                        val items = filtered.map { n ->
+                            NotificationItem(
+                                appName = n.appName,
+                                title = n.title,
+                                content = n.content,
+                                timestamp = n.timestamp.time,
+                                sender = n.sender,
+                                amount = n.amount
+                            )
+                        }
+                        showNotifications(items)
+                    } else {
+                        updateNotificationsList()
+                    }
+                }
+                is Result.Error -> {
+                    updateNotificationsList()
+                }
+                is Result.Loading -> {}
             }
         }
     }
@@ -77,10 +143,6 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
             binding.emptyHistoryText.visibility = View.VISIBLE
             binding.historyRecyclerView.visibility = View.GONE
         } else {
-            binding.emptyHistoryText.visibility = View.GONE
-            binding.historyRecyclerView.visibility = View.VISIBLE
-
-            // Convertir Map<String, String> a NotificationItem
             val notificationItems = notifications.map { notification ->
                 NotificationItem(
                     appName = notification["appName"] ?: "Desconocido",
@@ -95,15 +157,23 @@ class HistoryFragment : BaseFragment<FragmentHistoryBinding>() {
                     amount = notification["amount"]
                 )
             }
+            showNotifications(notificationItems)
+        }
+    }
 
-            // Actualizar el adaptador
-            adapter.updateData(notificationItems)
+    private fun showNotifications(items: List<NotificationItem>) {
+        if (items.isEmpty()) {
+            binding.emptyHistoryText.visibility = View.VISIBLE
+            binding.historyRecyclerView.visibility = View.GONE
+        } else {
+            binding.emptyHistoryText.visibility = View.GONE
+            binding.historyRecyclerView.visibility = View.VISIBLE
+            adapter.updateData(items)
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // Actualizar la lista cada vez que el fragmento se retoma
-        updateNotificationsList()
+        loadSupabaseNotifications()
     }
 }

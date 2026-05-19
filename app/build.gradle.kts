@@ -2,7 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.gms.google-services")
+    id("org.jetbrains.kotlin.plugin.serialization")
     id("dagger.hilt.android.plugin")
     id("kotlin-kapt")
 }
@@ -70,7 +70,6 @@ dependencies {
     
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
 
     // Navegación
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.5")
@@ -81,19 +80,23 @@ dependencies {
     implementation(libs.androidx.foundation.android)
     implementation(libs.androidx.material3.android)
 
-    implementation(platform("com.google.firebase:firebase-bom:33.13.0"))
-    // Firebase Authentication
-    implementation("com.google.firebase:firebase-auth-ktx")
+    // Supabase (versiones actualizadas y consolidadas)
+    implementation(platform("io.github.jan-tennert.supabase:bom:2.6.0")) // Usar BOM para gestionar versiones
+    implementation("io.github.jan-tennert.supabase:postgrest-kt")
+    implementation("io.github.jan-tennert.supabase:realtime-kt")
+    implementation("io.github.jan-tennert.supabase:gotrue-kt") // Para autenticación con JWT
 
-    // Firebase Realtime Database
-    implementation("com.google.firebase:firebase-database-ktx")
+    // Kotlin Serialization (requerido por Supabase-kt)
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
-    // Firebase Cloud Messaging
-    implementation("com.google.firebase:firebase-messaging-ktx")
+    // Ktor (requerido por Supabase-kt, si no se usa el BOM)
+    implementation("io.ktor:ktor-client-android:2.3.7")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
 
     // Google Sign-In (añadido para autenticación con Google)
     implementation("com.google.android.gms:play-services-auth:20.7.0")
-    
+
     // Testing dependencies
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.mockito:mockito-core:5.5.0")
@@ -111,4 +114,5 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.test:rules:1.5.0")
+
 }

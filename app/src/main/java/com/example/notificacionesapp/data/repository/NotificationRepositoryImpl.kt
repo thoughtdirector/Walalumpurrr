@@ -1,15 +1,16 @@
 package com.example.notificacionesapp.data.repository
 
-import android.content.Context
 import com.example.notificacionesapp.core.domain.Result
 import com.example.notificacionesapp.domain.model.Notification
 import com.example.notificacionesapp.domain.model.NotificationType
 import com.example.notificacionesapp.domain.repository.NotificationRepository
 import com.example.notificacionesapp.domain.repository.NotificationStatistics
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import io.github.jan.supabase.SupabaseClient
+import io.github.jan.supabase.postgrest.from
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -17,34 +18,69 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/**
- * Implementation of NotificationRepository using SharedPreferences
- * TODO: Migrate to Room database for better performance and data management
- */
+@Serializable
+data class NotificationDto(
+    val id: String,
+    @SerialName("packagename") val packageName: String,
+    @SerialName("appname") val appName: String,
+    val title: String,
+    val content: String,
+    @SerialName("type") val notificationType: String,
+    val amount: String = "",
+    val sender: String = "",
+    @SerialName("admin_id") val adminId: String? = null,
+    @SerialName("timestamp") val timestampIso: String,
+    @SerialName("isprocessed") val isProcessed: Boolean = true
+)
+
+fun NotificationDto.toDomainNotification(): Notification {
+    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+    return Notification(
+        id = id,
+        packageName = packageName,
+        appName = appName,
+        title = title,
+        content = content,
+        type = try { NotificationType.valueOf(notificationType.uppercase()) } catch (_: Exception) { NotificationType.OTHER },
+        amount = amount,
+        sender = sender,
+        adminId = adminId,
+        timestamp = try { dateFormat.parse(timestampIso) ?: Date() } catch (_: Exception) { Date() },
+        isProcessed = isProcessed
+    )
+}
+
+fun Notification.toDto(): NotificationDto {
+    val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+    return NotificationDto(
+        id = id,
+        packageName = packageName,
+        appName = appName,
+        title = title,
+        content = content,
+        notificationType = type.name.lowercase(),
+        amount = amount,
+        sender = sender,
+        adminId = adminId,
+        timestampIso = dateFormat.format(timestamp),
+        isProcessed = isProcessed
+    )
+}
+
 @Singleton
 class NotificationRepositoryImpl @Inject constructor(
-    private val context: Context,
-    private val gson: Gson
+    private val supabaseClient: SupabaseClient
 ) : NotificationRepository {
 
     companion object {
-        private const val PREFS_NAME = "notification_history"
-        private const val HISTORY_KEY = "notifications"
-        private const val MAX_HISTORY_SIZE = 1000
+        private const val MAX_HISTORY_SIZE = 1000L
     }
-
-    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
     override suspend fun saveNotification(notification: Notification): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                val notifications = getAllNotificationsFromStorage()
                 val notificationWithId = notification.copy(id = UUID.randomUUID().toString())
-                val updatedNotifications = (notifications + notificationWithId)
-                    .sortedByDescending { it.timestamp }
-                    .take(MAX_HISTORY_SIZE)
-
-                saveNotificationsToStorage(updatedNotifications)
+                supabaseClient.from("relayed_notifications").insert(notificationWithId.toDto())
                 Result.Success(Unit)
             } catch (e: Exception) {
                 Result.Error(e)
@@ -55,8 +91,13 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun getAllNotifications(): Result<List<Notification>> {
         return withContext(Dispatchers.IO) {
             try {
-                val notifications = getAllNotificationsFromStorage()
-                Result.Success(notifications)
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select {
+                        order("timestamp", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                        limit(MAX_HISTORY_SIZE)
+                    }
+                    .decodeList()
+                Result.Success(dtos.map { it.toDomainNotification() })
             } catch (e: Exception) {
                 Result.Error(e)
             }
@@ -66,9 +107,10 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun getNotificationsByType(type: NotificationType): Result<List<Notification>> {
         return withContext(Dispatchers.IO) {
             try {
-                val allNotifications = getAllNotificationsFromStorage()
-                val filteredNotifications = allNotifications.filter { it.type == type }
-                Result.Success(filteredNotifications)
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select { filter { eq("type", type.name.lowercase()) } }
+                    .decodeList()
+                Result.Success(dtos.map { it.toDomainNotification() })
             } catch (e: Exception) {
                 Result.Error(e)
             }
@@ -81,11 +123,19 @@ class NotificationRepositoryImpl @Inject constructor(
     ): Result<List<Notification>> {
         return withContext(Dispatchers.IO) {
             try {
-                val allNotifications = getAllNotificationsFromStorage()
-                val filteredNotifications = allNotifications.filter { notification ->
-                    notification.timestamp.after(startDate) && notification.timestamp.before(endDate)
-                }
-                Result.Success(filteredNotifications)
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                val startIso = dateFormat.format(startDate)
+                val endIso = dateFormat.format(endDate)
+
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select {
+                        filter {
+                            gte("timestamp", startIso)
+                            lt("timestamp", endIso)
+                        }
+                    }
+                    .decodeList()
+                Result.Success(dtos.map { it.toDomainNotification() })
             } catch (e: Exception) {
                 Result.Error(e)
             }
@@ -95,9 +145,10 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun getNotificationsByPackage(packageName: String): Result<List<Notification>> {
         return withContext(Dispatchers.IO) {
             try {
-                val allNotifications = getAllNotificationsFromStorage()
-                val filteredNotifications = allNotifications.filter { it.packageName == packageName }
-                Result.Success(filteredNotifications)
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select { filter { eq("packagename", packageName) } }
+                    .decodeList()
+                Result.Success(dtos.map { it.toDomainNotification() })
             } catch (e: Exception) {
                 Result.Error(e)
             }
@@ -107,14 +158,19 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun searchNotifications(query: String): Result<List<Notification>> {
         return withContext(Dispatchers.IO) {
             try {
-                val allNotifications = getAllNotificationsFromStorage()
-                val filteredNotifications = allNotifications.filter { notification ->
-                    notification.title.contains(query, ignoreCase = true) ||
-                    notification.content.contains(query, ignoreCase = true) ||
-                    notification.appName.contains(query, ignoreCase = true) ||
-                    notification.sender.contains(query, ignoreCase = true)
-                }
-                Result.Success(filteredNotifications)
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select {
+                        filter {
+                            or {
+                                ilike("title", "%$query%")
+                                ilike("content", "%$query%")
+                                ilike("appname", "%$query%")
+                                ilike("sender", "%$query%")
+                            }
+                        }
+                    }
+                    .decodeList()
+                Result.Success(dtos.map { it.toDomainNotification() })
             } catch (e: Exception) {
                 Result.Error(e)
             }
@@ -124,9 +180,9 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun deleteNotification(notificationId: String): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                val notifications = getAllNotificationsFromStorage()
-                val updatedNotifications = notifications.filter { it.id != notificationId }
-                saveNotificationsToStorage(updatedNotifications)
+                supabaseClient.from("relayed_notifications").delete {
+                    filter { eq("id", notificationId) }
+                }
                 Result.Success(Unit)
             } catch (e: Exception) {
                 Result.Error(e)
@@ -137,7 +193,7 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun clearAllNotifications(): Result<Unit> {
         return withContext(Dispatchers.IO) {
             try {
-                prefs.edit().putString(HISTORY_KEY, "[]").apply()
+                supabaseClient.from("relayed_notifications").delete { filter { neq("id", "none") } }
                 Result.Success(Unit)
             } catch (e: Exception) {
                 Result.Error(e)
@@ -148,32 +204,32 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun getNotificationStatistics(): Result<NotificationStatistics> {
         return withContext(Dispatchers.IO) {
             try {
-                val notifications = getAllNotificationsFromStorage()
-                
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select()
+                    .decodeList()
+
+                val notifications = dtos.map { it.toDomainNotification() }
                 val totalNotifications = notifications.size
                 val notificationsByType = notifications.groupBy { it.type }
                     .mapValues { it.value.size }
                 val notificationsByApp = notifications.groupBy { it.appName }
                     .mapValues { it.value.size }
-                
-                val amounts = notifications.mapNotNull { notification ->
-                    notification.amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
+
+                val amounts = notifications.mapNotNull { n ->
+                    n.amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
                 }
                 val totalAmount = amounts.sum()
                 val averageAmount = if (amounts.isNotEmpty()) totalAmount / amounts.size else 0.0
-                
                 val lastNotificationDate = notifications.maxByOrNull { it.timestamp }?.timestamp
 
-                val statistics = NotificationStatistics(
+                Result.Success(NotificationStatistics(
                     totalNotifications = totalNotifications,
                     notificationsByType = notificationsByType,
                     notificationsByApp = notificationsByApp,
                     totalAmount = totalAmount,
                     averageAmount = averageAmount,
                     lastNotificationDate = lastNotificationDate
-                )
-
-                Result.Success(statistics)
+                ))
             } catch (e: Exception) {
                 Result.Error(e)
             }
@@ -183,13 +239,14 @@ class NotificationRepositoryImpl @Inject constructor(
     override suspend fun exportNotificationsToCsv(): Result<String> {
         return withContext(Dispatchers.IO) {
             try {
-                val notifications = getAllNotificationsFromStorage()
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select()
+                    .decodeList()
+
+                val notifications = dtos.map { it.toDomainNotification() }
                 val csvBuilder = StringBuilder()
-                
-                // CSV Header
                 csvBuilder.appendLine("ID,App Name,Title,Content,Type,Amount,Sender,Timestamp")
-                
-                // CSV Data
+
                 val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
                 notifications.forEach { notification ->
                     csvBuilder.appendLine(
@@ -203,26 +260,11 @@ class NotificationRepositoryImpl @Inject constructor(
                         dateFormat.format(notification.timestamp)
                     )
                 }
-                
+
                 Result.Success(csvBuilder.toString())
             } catch (e: Exception) {
                 Result.Error(e)
             }
         }
-    }
-
-    private fun getAllNotificationsFromStorage(): List<Notification> {
-        val historyJson = prefs.getString(HISTORY_KEY, "[]") ?: "[]"
-        return try {
-            val type = object : TypeToken<List<Notification>>() {}.type
-            gson.fromJson(historyJson, type) ?: emptyList()
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
-
-    private fun saveNotificationsToStorage(notifications: List<Notification>) {
-        val json = gson.toJson(notifications)
-        prefs.edit().putString(HISTORY_KEY, json).apply()
     }
 }

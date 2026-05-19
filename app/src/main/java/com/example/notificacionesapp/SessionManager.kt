@@ -3,8 +3,14 @@ package com.example.notificacionesapp
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class SessionManager(context: Context) {
+@Singleton
+class SessionManager @Inject constructor(
+    @ApplicationContext context: Context
+) {
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE)
     private val editor: SharedPreferences.Editor = sharedPreferences.edit()
@@ -15,16 +21,18 @@ class SessionManager(context: Context) {
         const val KEY_USER_ID = "userId"
         const val KEY_USER_EMAIL = "userEmail"
         const val KEY_USER_ROLE = "userRole"
+        const val KEY_ADMIN_ID = "adminId"
         private const val TAG = "SessionManager"
     }
 
-    fun createLoginSession(userId: String, email: String, role: String) {
+    fun createLoginSession(userId: String, email: String, role: String, adminId: String? = null) {
         try {
             editor.apply {
                 putBoolean(KEY_IS_LOGGED_IN, true)
                 putString(KEY_USER_ID, userId)
                 putString(KEY_USER_EMAIL, email)
                 putString(KEY_USER_ROLE, role)
+                putString(KEY_ADMIN_ID, adminId)
                 commit()
             }
             Log.d(TAG, "Sesión creada para usuario: $email")
@@ -52,6 +60,7 @@ class SessionManager(context: Context) {
         user[KEY_USER_ID] = sharedPreferences.getString(KEY_USER_ID, null)
         user[KEY_USER_EMAIL] = sharedPreferences.getString(KEY_USER_EMAIL, null)
         user[KEY_USER_ROLE] = sharedPreferences.getString(KEY_USER_ROLE, null)
+        user[KEY_ADMIN_ID] = sharedPreferences.getString(KEY_ADMIN_ID, null)
         return user
     }
 
@@ -61,6 +70,10 @@ class SessionManager(context: Context) {
 
     fun getUserRole(): String? {
         return sharedPreferences.getString(KEY_USER_ROLE, null)
+    }
+
+    fun getAdminId(): String? {
+        return sharedPreferences.getString(KEY_ADMIN_ID, null)
     }
 
     fun logoutUser() {

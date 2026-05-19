@@ -1,8 +1,8 @@
 package com.example.notificacionesapp.fragments
 
 import android.app.AlertDialog
+import android.app.DatePickerDialog
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -10,27 +10,29 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
-import androidx.cardview.widget.CardView
-import androidx.core.content.ContextCompat
+import java.util.Calendar
+import java.util.Locale
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.notificacionesapp.MainActivity
 import com.example.notificacionesapp.R
+import com.example.notificacionesapp.core.domain.Result
+import com.example.notificacionesapp.domain.model.User
+import com.example.notificacionesapp.domain.repository.AuthRepository
 import com.example.notificacionesapp.databinding.FragmentManageEmployeesBinding
 import com.google.android.material.button.MaterialButton
-import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.ValueEventListener
-import com.google.firebase.database.ktx.database
-import com.google.firebase.ktx.Firebase
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
 
-    private lateinit var auth: FirebaseAuth
-    private val database = Firebase.database.reference
+    @Inject lateinit var authRepository: AuthRepository
+
     private lateinit var employeesAdapter: EmployeesAdapter
-    private val employeesList = ArrayList<EmployeeModel>()
+    private val employeesList = ArrayList<User>()
 
     override fun getViewBinding(
         inflater: LayoutInflater,
@@ -39,24 +41,16 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
         return FragmentManageEmployeesBinding.inflate(inflater, container, false)
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        auth = FirebaseAuth.getInstance()
-    }
-
     override fun setupUI() {
-        // Configurar RecyclerView
         employeesAdapter = EmployeesAdapter(employeesList,
             object : EmployeeClickListener {
-                override fun onEditClick(employee: EmployeeModel) {
+                override fun onEditClick(employee: User) {
                     showEditEmployeeDialog(employee)
                 }
-
-                override fun onDeleteClick(employee: EmployeeModel) {
+                override fun onDeleteClick(employee: User) {
                     showDeleteEmployeeConfirmDialog(employee)
                 }
-                
-                override fun onResetPasswordClick(employee: EmployeeModel) {
+                override fun onResetPasswordClick(employee: User) {
                     showResetPasswordDialog(employee)
                 }
             }
@@ -67,120 +61,113 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
             adapter = employeesAdapter
         }
 
-        // Botón de crear empleado
-        binding.createEmployeeButton.setOnClickListener {
-            showCreateEmployeeDialog()
-        }
+        binding.createEmployeeButton.setOnClickListener { showCreateEmployeeDialog() }
 
-        // Cargar lista de empleados
         loadEmployees()
     }
 
     private fun loadEmployees() {
-        val currentUser = auth.currentUser
-        if (currentUser != null) {
-            binding.progressBar.visibility = View.VISIBLE
-            binding.noEmployeesText.visibility = View.GONE
+        val mainActivity = activity as? MainActivity ?: return
 
-            // Buscar empleados asociados a este administrador
-            database.child("users").orderByChild("adminId").equalTo(currentUser.uid)
-                .addListenerForSingleValueEvent(object : ValueEventListener {
-                    override fun onDataChange(snapshot: DataSnapshot) {
-                        employeesList.clear()
+        binding.progressBar.visibility = View.VISIBLE
+        binding.noEmployeesText.visibility = View.GONE
 
-                        for (employeeSnapshot in snapshot.children) {
-                            val employeeData = employeeSnapshot.value as? Map<String, Any>
-                            if (employeeData != null) {
-                                val employee = EmployeeModel(
-                                    uid = employeeSnapshot.key ?: "",
-                                    firstName = employeeData["firstName"] as? String ?: "",
-                                    lastName = employeeData["lastName"] as? String ?: "",
-                                    email = employeeData["email"] as? String ?: "",
-                                    phone = employeeData["phone"] as? String ?: "",
-                                    birthDate = employeeData["birthDate"] as? String ?: ""
-                                )
+        lifecycleScope.launch {
+            val adminId = mainActivity.sessionManager.getUserId() ?: return@launch
+            binding.progressBar.visibility = View.GONE
 
-                                employeesList.add(employee)
-                            }
-                        }
+            when (val result = authRepository.getUsersByAdminId(adminId)) {
+                is Result.Success -> {
+                    employeesList.clear()
+                    employeesList.addAll(result.data)
+                    employeesAdapter.notifyDataSetChanged()
 
-                        employeesAdapter.notifyDataSetChanged()
-                        binding.progressBar.visibility = View.GONE
-
-                        // Mostrar mensaje si no hay empleados
-                        if (employeesList.isEmpty()) {
-                            binding.noEmployeesText.visibility = View.VISIBLE
-                        } else {
-                            binding.noEmployeesText.visibility = View.GONE
-                        }
-                    }
-
-                    override fun onCancelled(error: DatabaseError) {
-                        binding.progressBar.visibility = View.GONE
+                    if (employeesList.isEmpty()) {
                         binding.noEmployeesText.visibility = View.VISIBLE
-                        Toast.makeText(requireContext(), "Error al cargar empleados: ${error.message}",
-                            Toast.LENGTH_SHORT).show()
+                    } else {
+                        binding.noEmployeesText.visibility = View.GONE
                     }
-                })
+                }
+                is Result.Error -> {
+                    binding.noEmployeesText.visibility = View.VISIBLE
+                    Toast.makeText(requireContext(),
+                        "Error al cargar empleados: ${result.exception.message}", Toast.LENGTH_SHORT).show()
+                }
+                is Result.Loading -> {}
+            }
         }
     }
 
     private fun showCreateEmployeeDialog() {
-        val mainActivity = activity as? MainActivity
-        mainActivity?.let {
-            val builder = AlertDialog.Builder(requireContext())
-            builder.setTitle("Crear Nuevo Empleado")
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Crear Nuevo Empleado")
 
-            val inputLayout = LinearLayout(requireContext())
-            inputLayout.orientation = LinearLayout.VERTICAL
-            inputLayout.setPadding(20, 20, 20, 20)
+        val inputLayout = LinearLayout(requireContext())
+        inputLayout.orientation = LinearLayout.VERTICAL
+        inputLayout.setPadding(20, 20, 20, 20)
 
-            val emailInput = EditText(requireContext())
-            emailInput.hint = "Correo Electrónico"
-            inputLayout.addView(emailInput)
+        val emailInput = EditText(requireContext())
+        emailInput.hint = "Correo Electrónico"
+        inputLayout.addView(emailInput)
 
-            val firstNameInput = EditText(requireContext())
-            firstNameInput.hint = "Nombre"
-            inputLayout.addView(firstNameInput)
+        val firstNameInput = EditText(requireContext())
+        firstNameInput.hint = "Nombre"
+        inputLayout.addView(firstNameInput)
 
-            val lastNameInput = EditText(requireContext())
-            lastNameInput.hint = "Apellido"
-            inputLayout.addView(lastNameInput)
+        val lastNameInput = EditText(requireContext())
+        lastNameInput.hint = "Apellido"
+        inputLayout.addView(lastNameInput)
 
-            val phoneInput = EditText(requireContext())
-            phoneInput.hint = "Teléfono"
-            inputLayout.addView(phoneInput)
+        val phoneInput = EditText(requireContext())
+        phoneInput.hint = "Teléfono"
+        inputLayout.addView(phoneInput)
 
-            val birthDateInput = EditText(requireContext())
-            birthDateInput.hint = "Fecha de Nacimiento (YYYY-MM-DD)"
-            inputLayout.addView(birthDateInput)
+        val birthDateInput = EditText(requireContext())
+        birthDateInput.hint = "Fecha de Nacimiento (YYYY-MM-DD)"
+        birthDateInput.isFocusable = false
+        birthDateInput.isClickable = true
+        inputLayout.addView(birthDateInput)
 
-            builder.setView(inputLayout)
-
-            builder.setPositiveButton("Crear") { _, _ ->
-                val email = emailInput.text.toString()
-                val firstName = firstNameInput.text.toString()
-                val lastName = lastNameInput.text.toString()
-                val phone = phoneInput.text.toString()
-                val birthDate = birthDateInput.text.toString()
-
-                if (email.isNotEmpty() && firstName.isNotEmpty() && lastName.isNotEmpty()
-                    && phone.isNotEmpty() && birthDate.isNotEmpty()) {
-                    mainActivity.createEmployeeAccount(email, firstName, lastName, phone, birthDate)
-                    // Recargar la lista después de un breve retraso
-                    binding.root.postDelayed({ loadEmployees() }, 1500)
-                } else {
-                    Toast.makeText(requireContext(), "Todos los campos son requeridos",
-                        Toast.LENGTH_SHORT).show()
-                }
-            }
-
-            builder.setNegativeButton("Cancelar", null)
-            builder.show()
+        val calendar = Calendar.getInstance()
+        birthDateInput.setOnClickListener {
+            DatePickerDialog(
+                requireContext(),
+                { _, y, m, d ->
+                    val fm = String.format(Locale.getDefault(), "%02d", m + 1)
+                    val fd = String.format(Locale.getDefault(), "%02d", d)
+                    birthDateInput.setText("$y-$fm-$fd")
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+            ).show()
         }
+
+        builder.setView(inputLayout)
+
+        builder.setPositiveButton("Crear") { _, _ ->
+            val email = emailInput.text.toString()
+            val firstName = firstNameInput.text.toString()
+            val lastName = lastNameInput.text.toString()
+            val phone = phoneInput.text.toString()
+            val birthDate = birthDateInput.text.toString()
+
+            if (email.isNotEmpty() && firstName.isNotEmpty() && lastName.isNotEmpty()
+                && phone.isNotEmpty() && birthDate.isNotEmpty()) {
+                (activity as? MainActivity)?.createEmployeeAccount(
+                    email, firstName, lastName, phone, birthDate
+                )
+                binding.root.postDelayed({ loadEmployees() }, 1500)
+            } else {
+                Toast.makeText(requireContext(), "Todos los campos son requeridos", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        builder.setNegativeButton("Cancelar", null)
+        builder.show()
     }
 
-    private fun showEditEmployeeDialog(employee: EmployeeModel) {
+    private fun showEditEmployeeDialog(employee: User) {
         val builder = AlertDialog.Builder(requireContext())
         builder.setTitle("Editar Empleado")
 
@@ -188,7 +175,6 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
         layout.orientation = LinearLayout.VERTICAL
         layout.setPadding(20, 20, 20, 20)
 
-        // Campos a editar
         val firstNameInput = EditText(requireContext())
         firstNameInput.hint = "Nombre"
         firstNameInput.setText(employee.firstName)
@@ -212,10 +198,9 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
             val phone = phoneInput.text.toString()
 
             if (firstName.isNotEmpty() && lastName.isNotEmpty()) {
-                updateEmployeeProfile(employee.uid, firstName, lastName, phone)
+                updateEmployeeProfile(employee.id, firstName, lastName, phone)
             } else {
-                Toast.makeText(requireContext(), "Nombre y apellido son obligatorios",
-                    Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), "Nombre y apellido son obligatorios", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -224,30 +209,32 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
     }
 
     private fun updateEmployeeProfile(employeeId: String, firstName: String, lastName: String, phone: String) {
-        val updates = HashMap<String, Any>()
-        updates["firstName"] = firstName
-        updates["lastName"] = lastName
-        updates["phone"] = phone
-
-        database.child("users").child(employeeId).updateChildren(updates)
-            .addOnSuccessListener {
-                Toast.makeText(requireContext(), "Empleado actualizado correctamente",
-                    Toast.LENGTH_SHORT).show()
-                loadEmployees() // Recargar datos
+        lifecycleScope.launch {
+            val userResult = authRepository.getUserById(employeeId)
+            if (userResult is Result.Success) {
+                val updatedUser = userResult.data.copy(firstName = firstName, lastName = lastName, phone = phone)
+                when (val result = authRepository.updateUser(updatedUser)) {
+                    is Result.Success -> {
+                        Toast.makeText(requireContext(), "Empleado actualizado correctamente", Toast.LENGTH_SHORT).show()
+                        loadEmployees()
+                    }
+                    is Result.Error -> {
+                        Toast.makeText(requireContext(),
+                            "Error al actualizar el empleado: ${result.exception.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    is Result.Loading -> {}
+                }
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(requireContext(), "Error al actualizar el empleado: ${e.message}",
-                    Toast.LENGTH_SHORT).show()
-            }
+        }
     }
 
-    private fun showDeleteEmployeeConfirmDialog(employee: EmployeeModel) {
+    private fun showDeleteEmployeeConfirmDialog(employee: User) {
         val builder = AlertDialog.Builder(requireContext())
         builder.setTitle("Eliminar Empleado")
         builder.setMessage("¿Estás seguro de que deseas eliminar a ${employee.firstName} ${employee.lastName}? Esta acción no se puede deshacer.")
 
         builder.setPositiveButton("Eliminar") { _, _ ->
-            deleteEmployee(employee.uid)
+            deleteEmployee(employee.id)
         }
 
         builder.setNegativeButton("Cancelar", null)
@@ -255,53 +242,54 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
     }
 
     private fun deleteEmployee(employeeId: String) {
-        // Eliminar de la base de datos
-        database.child("users").child(employeeId).removeValue()
-            .addOnSuccessListener {
-                Toast.makeText(requireContext(), "Empleado eliminado correctamente",
-                    Toast.LENGTH_SHORT).show()
-                loadEmployees() // Recargar la lista
+        lifecycleScope.launch {
+            when (val result = authRepository.deleteUser(employeeId)) {
+                is Result.Success -> {
+                    Toast.makeText(requireContext(), "Empleado eliminado correctamente", Toast.LENGTH_SHORT).show()
+                    loadEmployees()
+                }
+                is Result.Error -> {
+                    Toast.makeText(requireContext(),
+                        "Error al eliminar el empleado: ${result.exception.message}", Toast.LENGTH_SHORT).show()
+                }
+                is Result.Loading -> {}
             }
-            .addOnFailureListener { e ->
-                Toast.makeText(requireContext(), "Error al eliminar el empleado: ${e.message}",
-                    Toast.LENGTH_SHORT).show()
-            }
+        }
     }
-    
-    private fun showResetPasswordDialog(employee: EmployeeModel) {
+
+    private fun showResetPasswordDialog(employee: User) {
         val builder = AlertDialog.Builder(requireContext())
         builder.setTitle("Resetear Contraseña")
         builder.setMessage("¿Estás seguro de que deseas resetear la contraseña de ${employee.firstName} ${employee.lastName}?")
-        
+
         builder.setPositiveButton("Resetear") { dialog, _ ->
-            val mainActivity = activity as? MainActivity
-            mainActivity?.resetEmployeePasswordAlternative(employee.email, "${employee.firstName} ${employee.lastName}")
+            lifecycleScope.launch {
+                when (val result = authRepository.resetPassword(employee.email)) {
+                    is Result.Success -> {
+                        Toast.makeText(requireContext(),
+                            "Correo de restablecimiento enviado a ${employee.email}", Toast.LENGTH_SHORT).show()
+                    }
+                    is Result.Error -> {
+                        Toast.makeText(requireContext(),
+                            "Error: ${result.exception.message}", Toast.LENGTH_SHORT).show()
+                    }
+                    is Result.Loading -> {}
+                }
+            }
         }
-        
+
         builder.setNegativeButton("Cancelar", null)
         builder.show()
     }
 
-    // Modelo de datos para empleado
-    data class EmployeeModel(
-        val uid: String,
-        val firstName: String,
-        val lastName: String,
-        val email: String,
-        val phone: String,
-        val birthDate: String
-    )
-
-    // Interfaz para manejar clics en empleados
     interface EmployeeClickListener {
-        fun onEditClick(employee: EmployeeModel)
-        fun onDeleteClick(employee: EmployeeModel)
-        fun onResetPasswordClick(employee: EmployeeModel)
+        fun onEditClick(employee: User)
+        fun onDeleteClick(employee: User)
+        fun onResetPasswordClick(employee: User)
     }
 
-    // Adaptador para RecyclerView
     inner class EmployeesAdapter(
-        private val employees: List<EmployeeModel>,
+        private val employees: List<User>,
         private val listener: EmployeeClickListener
     ) : RecyclerView.Adapter<EmployeesAdapter.EmployeeViewHolder>() {
 
@@ -325,22 +313,14 @@ class ManageEmployeesFragment : BaseFragment<FragmentManageEmployeesBinding>() {
             private val resetPasswordButton: MaterialButton = itemView.findViewById(R.id.resetPasswordButton)
             private val deleteButton: MaterialButton = itemView.findViewById(R.id.deleteEmployeeButton)
 
-            fun bind(employee: EmployeeModel) {
+            fun bind(employee: User) {
                 nameText.text = "${employee.firstName} ${employee.lastName}"
                 emailText.text = employee.email
                 phoneText.text = employee.phone
 
-                editButton.setOnClickListener {
-                    listener.onEditClick(employee)
-                }
-
-                resetPasswordButton.setOnClickListener {
-                    listener.onResetPasswordClick(employee)
-                }
-
-                deleteButton.setOnClickListener {
-                    listener.onDeleteClick(employee)
-                }
+                editButton.setOnClickListener { listener.onEditClick(employee) }
+                resetPasswordButton.setOnClickListener { listener.onResetPasswordClick(employee) }
+                deleteButton.setOnClickListener { listener.onDeleteClick(employee) }
             }
         }
     }

@@ -54,9 +54,19 @@ class NotificationAdapter : RecyclerView.Adapter<NotificationAdapter.Notificatio
             if (notification.sender != null && notification.amount != null) {
                 transactionDetails.visibility = View.VISIBLE
                 senderText.text = notification.sender
-                amountText.text = notification.amount
+                amountText.text = "$${formatAmount(notification.amount)}"
             } else {
                 transactionDetails.visibility = View.GONE
+            }
+        }
+
+        private fun formatAmount(amount: String): String {
+            return try {
+                val cleaned = amount.replace(Regex("[^0-9]"), "")
+                val number = cleaned.toLong()
+                java.text.NumberFormat.getIntegerInstance(java.util.Locale("es", "CO")).format(number)
+            } catch (e: Exception) {
+                amount
             }
         }
     }

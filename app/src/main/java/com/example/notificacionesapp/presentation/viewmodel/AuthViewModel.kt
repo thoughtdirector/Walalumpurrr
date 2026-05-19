@@ -4,25 +4,21 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.notificacionesapp.core.domain.AuthUserInfo
 import com.example.notificacionesapp.core.domain.Result
 import com.example.notificacionesapp.domain.model.User
 import com.example.notificacionesapp.domain.repository.AuthRepository
-import com.google.firebase.auth.FirebaseUser
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/**
- * ViewModel for authentication operations
- * Manages user authentication state and operations
- */
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepository
 ) : ViewModel() {
 
-    private val _currentUser = MutableLiveData<FirebaseUser?>()
-    val currentUser: LiveData<FirebaseUser?> = _currentUser
+    private val _currentUser = MutableLiveData<AuthUserInfo?>()
+    val currentUser: LiveData<AuthUserInfo?> = _currentUser
 
     private val _userData = MutableLiveData<User?>()
     val userData: LiveData<User?> = _userData
@@ -40,9 +36,6 @@ class AuthViewModel @Inject constructor(
         checkAuthState()
     }
 
-    /**
-     * Check current authentication state
-     */
     fun checkAuthState() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -53,7 +46,7 @@ class AuthViewModel @Inject constructor(
             _isLoggedIn.value = user != null
 
             if (user != null) {
-                loadUserData(user.uid)
+                loadUserData(user.id)
             } else {
                 _userData.value = null
             }
@@ -62,9 +55,6 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Load user data from repository
-     */
     private fun loadUserData(userId: String) {
         viewModelScope.launch {
             when (val result = authRepository.getUserById(userId)) {
@@ -75,15 +65,11 @@ class AuthViewModel @Inject constructor(
                     _error.value = result.exception.message ?: "Error loading user data"
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
         }
     }
 
-    /**
-     * Sign in with email and password
-     */
     fun signInWithEmailAndPassword(email: String, password: String) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -93,22 +79,18 @@ class AuthViewModel @Inject constructor(
                 is Result.Success -> {
                     _currentUser.value = result.data
                     _isLoggedIn.value = true
-                    loadUserData(result.data.uid)
+                    loadUserData(result.data.id)
                 }
                 is Result.Error -> {
                     _error.value = result.exception.message ?: "Sign in failed"
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Sign up with email and password
-     */
     fun signUpWithEmailAndPassword(
         email: String,
         password: String,
@@ -116,7 +98,8 @@ class AuthViewModel @Inject constructor(
         lastName: String,
         phone: String,
         birthDate: String,
-        role: String
+        role: String,
+        adminId: String? = null
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -128,34 +111,30 @@ class AuthViewModel @Inject constructor(
                     _currentUser.value = user
                     _isLoggedIn.value = true
 
-                    // Create user account with additional data
-                    createUserAccount(user, firstName, lastName, phone, birthDate, role)
+                    createUserAccount(user, firstName, lastName, phone, birthDate, role, adminId)
                 }
                 is Result.Error -> {
                     _error.value = result.exception.message ?: "Sign up failed"
                     _isLoading.value = false
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
         }
     }
 
-    /**
-     * Create user account with additional data
-     */
     private fun createUserAccount(
-        user: FirebaseUser,
+        user: AuthUserInfo,
         firstName: String,
         lastName: String,
         phone: String,
         birthDate: String,
-        role: String
+        role: String,
+        adminId: String? = null
     ) {
         viewModelScope.launch {
             when (val result = authRepository.createUserAccount(
-                user, firstName, lastName, phone, birthDate, role
+                user, firstName, lastName, phone, birthDate, role, adminId
             )) {
                 is Result.Success -> {
                     _userData.value = result.data
@@ -164,16 +143,12 @@ class AuthViewModel @Inject constructor(
                     _error.value = result.exception.message ?: "Error creating user account"
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Sign in with Google
-     */
     fun signInWithGoogle(idToken: String) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -183,22 +158,18 @@ class AuthViewModel @Inject constructor(
                 is Result.Success -> {
                     _currentUser.value = result.data
                     _isLoggedIn.value = true
-                    loadUserData(result.data.uid)
+                    loadUserData(result.data.id)
                 }
                 is Result.Error -> {
                     _error.value = result.exception.message ?: "Google sign in failed"
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Sign out current user
-     */
     fun signOut() {
         viewModelScope.launch {
             _isLoading.value = true
@@ -214,16 +185,12 @@ class AuthViewModel @Inject constructor(
                     _error.value = result.exception.message ?: "Sign out failed"
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Reset password
-     */
     fun resetPassword(email: String) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -231,22 +198,17 @@ class AuthViewModel @Inject constructor(
 
             when (val result = authRepository.resetPassword(email)) {
                 is Result.Success -> {
-                    // Password reset email sent successfully
                 }
                 is Result.Error -> {
                     _error.value = result.exception.message ?: "Password reset failed"
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
             _isLoading.value = false
         }
     }
 
-    /**
-     * Create employee account
-     */
     fun createEmployeeAccount(
         email: String,
         password: String,
@@ -254,7 +216,7 @@ class AuthViewModel @Inject constructor(
         lastName: String,
         phone: String,
         birthDate: String,
-        adminId: String
+        adminId: String?
     ) {
         viewModelScope.launch {
             _isLoading.value = true
@@ -264,24 +226,18 @@ class AuthViewModel @Inject constructor(
                 is Result.Success -> {
                     val user = result.data
                     _currentUser.value = user
-
-                    // Create employee account
-                    createUserAccount(user, firstName, lastName, phone, birthDate, "employee")
+                    createUserAccount(user, firstName, lastName, phone, birthDate, "employee", adminId)
                 }
                 is Result.Error -> {
                     _error.value = result.exception.message ?: "Employee account creation failed"
                     _isLoading.value = false
                 }
                 is Result.Loading -> {
-                    // Handle loading state if needed
                 }
             }
         }
     }
 
-    /**
-     * Clear error message
-     */
     fun clearError() {
         _error.value = null
     }

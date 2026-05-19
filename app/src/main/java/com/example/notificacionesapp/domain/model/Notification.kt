@@ -14,6 +14,7 @@ data class Notification(
     val type: NotificationType,
     val amount: String = "",
     val sender: String = "",
+    val adminId: String? = null,
     val timestamp: Date = Date(),
     val isProcessed: Boolean = true
 )
