@@ -79,6 +79,9 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
             // Cargar configuración de tema
             binding.darkModeSwitch.isChecked = themePrefs.getBoolean("dark_mode", false)
 
+            // Cargar mute local
+            binding.muteLocalSwitch.isChecked = appPrefs.getBoolean("mute_local_tts", false)
+
             // Cargar configuración de montos (con manejo seguro de tipos)
             try {
                 binding.amountLimitSwitch.isChecked = amountSettings.isAmountLimitEnabled()
@@ -106,6 +109,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                 putBoolean("app_daviplata", binding.daviplataSwitch.isChecked)
                 putBoolean("app_bancolombia", binding.bancolombiaSwitch.isChecked)
                 putBoolean("app_whatsapp", binding.whatsappSwitch.isChecked)
+                putBoolean("mute_local_tts", binding.muteLocalSwitch.isChecked)
             }.apply()
 
             // Guardar configuración de montos

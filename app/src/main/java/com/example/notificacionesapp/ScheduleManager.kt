@@ -322,7 +322,7 @@ class ScheduleManager(private val context: Context) {
 
     // Comprobar si el servicio debería estar activo según la hora actual
     fun shouldServiceBeActive(): Boolean {
-        if (!isScheduleEnabled()) return true
+        if (!isScheduleEnabled()) return false  // sin horario → no forzar, el switch manual decide
 
         val startHour = getStartHour()
         val startMinute = getStartMinute()

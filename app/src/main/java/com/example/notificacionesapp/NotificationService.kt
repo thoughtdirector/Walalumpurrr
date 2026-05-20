@@ -53,6 +53,8 @@ class NotificationService : NotificationListenerService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastSeenTimestamp: Long = System.currentTimeMillis()
     private var pollingJob: kotlinx.coroutines.Job? = null
+    private var lastSavedContent: String = ""
+    private var lastSavedTime: Long = 0L
 
     companion object {
         var isServiceActive = false
@@ -178,35 +180,50 @@ class NotificationService : NotificationListenerService() {
 
                 lastNotification = message
 
-                val adminId = sessionManager.getUserId()
-                val savedNotification = com.example.notificacionesapp.domain.model.Notification(
-                    id = UUID.randomUUID().toString(),
-                    packageName = packageName,
-                    appName = appName,
-                    title = title,
-                    content = message,
-                    type = mapProcessorType(type),
-                    amount = amount ?: "",
-                    sender = sender ?: "",
-                    adminId = adminId,
-                    timestamp = Date(),
-                    isProcessed = true
-                )
-                serviceScope.launch {
-                    try {
-                        notificationRepository.saveNotification(savedNotification)
-                        Log.d("NotificationService", "Guardado en Supabase: ${savedNotification.id}")
-                    } catch (e: Exception) {
-                        Log.e("NotificationService", "Error guardando en Supabase: ${e.message}", e)
+                // Dedup: evitar guardar la misma notificación en <30s
+                val now = System.currentTimeMillis()
+                if (message != lastSavedContent || (now - lastSavedTime) > 30_000) {
+                    lastSavedContent = message
+                    lastSavedTime = now
+
+                    val adminId = sessionManager.getUserId()
+                    val savedNotification = com.example.notificacionesapp.domain.model.Notification(
+                        id = UUID.randomUUID().toString(),
+                        packageName = packageName,
+                        appName = appName,
+                        title = title,
+                        content = message,
+                        type = mapProcessorType(type),
+                        amount = amount ?: "",
+                        sender = sender ?: "",
+                        adminId = adminId,
+                        timestamp = Date(),
+                        isProcessed = true
+                    )
+                    serviceScope.launch {
+                        try {
+                            notificationRepository.saveNotification(savedNotification)
+                            Log.d("NotificationService", "Guardado en Supabase: ${savedNotification.id}")
+                        } catch (e: Exception) {
+                            Log.e("NotificationService", "Error guardando en Supabase: ${e.message}", e)
+                        }
                     }
+                } else {
+                    Log.d("NotificationService", "Notificación duplicada ignorada: $message")
                 }
 
                 supabaseManager.broadcastNotification(title, message, amount, sender)
 
                 if (amountSettings.shouldReadAmount(amount)) {
-                    Log.d("TTS_DEBUG", "[ADMIN_DIRECTO] speakOut desde onNotificationPosted")
-                    speakOut(message)
-                    lastSeenTimestamp = System.currentTimeMillis()
+                    val muted = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
+                        .getBoolean("mute_local_tts", false)
+                    if (!muted) {
+                        Log.d("TTS_DEBUG", "[ADMIN_DIRECTO] speakOut desde onNotificationPosted")
+                        speakOut(message)
+                        lastSeenTimestamp = System.currentTimeMillis()
+                    } else {
+                        Log.d("TTS_DEBUG", "[ADMIN_DIRECTO] Silenciado por mute_local_tts")
+                    }
                 } else {
                     Log.d("NotificationService", "Notificación no leída por límite de monto: $amount")
                 }
