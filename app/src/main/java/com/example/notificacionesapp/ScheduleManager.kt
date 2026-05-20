@@ -121,15 +121,9 @@ class ScheduleManager(private val context: Context) {
             putInt(KEY_END_MINUTE, endMinute)
         }.apply()
 
-        // Cancelar alarmas existentes antes de programar nuevas
         cancelScheduleAlarms()
-
         if (isEnabled) {
             setScheduleAlarms()
-
-            // Verificar el estado actual inmediatamente
-            val shouldBeActive = shouldServiceBeActive()
-            updateServiceState(shouldBeActive)
         }
     }
 
@@ -233,10 +227,6 @@ class ScheduleManager(private val context: Context) {
             }
 
             Log.d("ScheduleManager", "Alarmas programadas: inicio ${startCalendar.time}, fin ${endCalendar.time}")
-
-            // Verificar el estado actual e iniciar/detener servicio inmediatamente
-            val shouldBeActive = shouldServiceBeActive()
-            updateServiceState(shouldBeActive)
 
         } catch (e: Exception) {
             Log.e("ScheduleManager", "Error al programar alarmas exactas: ${e.message}")
