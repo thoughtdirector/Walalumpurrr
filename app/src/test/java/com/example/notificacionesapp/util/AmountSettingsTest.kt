@@ -26,147 +26,103 @@ class AmountSettingsTest {
 
     @Before
     fun setUp() {
-        `when`(mockContext.getSharedPreferences(anyString(), anyInt())).thenReturn(mockSharedPreferences)
+        `when`(mockContext.getSharedPreferences("amount_settings", Context.MODE_PRIVATE))
+            .thenReturn(mockSharedPreferences)
         `when`(mockSharedPreferences.edit()).thenReturn(mockEditor)
         `when`(mockEditor.putBoolean(anyString(), anyBoolean())).thenReturn(mockEditor)
-        `when`(mockEditor.putString(anyString(), anyString())).thenReturn(mockEditor)
-        `when`(mockEditor.apply()).then { }
+        `when`(mockEditor.putInt(anyString(), anyInt())).thenReturn(mockEditor)
+        `when`(mockEditor.commit()).thenReturn(true)
 
         amountSettings = AmountSettings(mockContext)
     }
 
     @Test
-    fun `isAmountFilterEnabled should return correct filter status`() {
-        // Given
-        `when`(mockSharedPreferences.getBoolean("amount_filter_enabled", false)).thenReturn(true)
-
-        // When
-        val isEnabled = amountSettings.isAmountFilterEnabled()
-
-        // Then
-        assertTrue(isEnabled)
+    fun `isAmountLimitEnabled returns value from prefs`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        assertTrue(amountSettings.isAmountLimitEnabled())
     }
 
     @Test
-    fun `setAmountFilterEnabled should save filter status correctly`() {
-        // Given
-        val isEnabled = true
-
-        // When
-        amountSettings.setAmountFilterEnabled(isEnabled)
-
-        // Then
-        verify(mockEditor).putBoolean("amount_filter_enabled", isEnabled)
-        verify(mockEditor).apply()
+    fun `isAmountLimitEnabled defaults to false`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(false)
+        assertFalse(amountSettings.isAmountLimitEnabled())
     }
 
     @Test
-    fun `getMinAmount should return correct minimum amount`() {
-        // Given
-        val minAmount = "1000"
-        `when`(mockSharedPreferences.getString("min_amount", "0")).thenReturn(minAmount)
-
-        // When
-        val result = amountSettings.getMinAmount()
-
-        // Then
-        assertEquals(minAmount, result)
+    fun `setAmountLimitEnabled saves to prefs`() {
+        amountSettings.setAmountLimitEnabled(true)
+        verify(mockEditor).putBoolean("amount_limit_enabled", true)
+        verify(mockEditor).commit()
     }
 
     @Test
-    fun `setMinAmount should save minimum amount correctly`() {
-        // Given
-        val minAmount = "500"
-
-        // When
-        amountSettings.setMinAmount(minAmount)
-
-        // Then
-        verify(mockEditor).putString("min_amount", minAmount)
-        verify(mockEditor).apply()
+    fun `getAmountThreshold returns stored value`() {
+        `when`(mockSharedPreferences.getInt("amount_threshold", 100000)).thenReturn(50000)
+        assertEquals(50000, amountSettings.getAmountThreshold())
     }
 
     @Test
-    fun `getMaxAmount should return correct maximum amount`() {
-        // Given
-        val maxAmount = "100000"
-        `when`(mockSharedPreferences.getString("max_amount", "999999999")).thenReturn(maxAmount)
-
-        // When
-        val result = amountSettings.getMaxAmount()
-
-        // Then
-        assertEquals(maxAmount, result)
+    fun `getAmountThreshold defaults to 100000`() {
+        `when`(mockSharedPreferences.getInt("amount_threshold", 100000)).thenReturn(100000)
+        assertEquals(100000, amountSettings.getAmountThreshold())
     }
 
     @Test
-    fun `setMaxAmount should save maximum amount correctly`() {
-        // Given
-        val maxAmount = "50000"
-
-        // When
-        amountSettings.setMaxAmount(maxAmount)
-
-        // Then
-        verify(mockEditor).putString("max_amount", maxAmount)
-        verify(mockEditor).apply()
+    fun `setAmountThreshold saves to prefs`() {
+        amountSettings.setAmountThreshold(75000)
+        verify(mockEditor).putInt("amount_threshold", 75000)
+        verify(mockEditor).commit()
     }
 
     @Test
-    fun `isAmountInRange should return true when amount is within range`() {
-        // Given
-        val amount = "5000"
-        `when`(mockSharedPreferences.getBoolean("amount_filter_enabled", false)).thenReturn(true)
-        `when`(mockSharedPreferences.getString("min_amount", "0")).thenReturn("1000")
-        `when`(mockSharedPreferences.getString("max_amount", "999999999")).thenReturn("10000")
-
-        // When
-        val isInRange = amountSettings.isAmountInRange(amount)
-
-        // Then
-        assertTrue(isInRange)
+    fun `shouldReadAmount returns true when limit disabled`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(false)
+        assertTrue(amountSettings.shouldReadAmount("500000"))
     }
 
     @Test
-    fun `isAmountInRange should return false when amount is below minimum`() {
-        // Given
-        val amount = "500"
-        `when`(mockSharedPreferences.getBoolean("amount_filter_enabled", false)).thenReturn(true)
-        `when`(mockSharedPreferences.getString("min_amount", "0")).thenReturn("1000")
-        `when`(mockSharedPreferences.getString("max_amount", "999999999")).thenReturn("10000")
-
-        // When
-        val isInRange = amountSettings.isAmountInRange(amount)
-
-        // Then
-        assertFalse(isInRange)
+    fun `shouldReadAmount returns true when amount is null`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        assertTrue(amountSettings.shouldReadAmount(null))
     }
 
     @Test
-    fun `isAmountInRange should return false when amount is above maximum`() {
-        // Given
-        val amount = "15000"
-        `when`(mockSharedPreferences.getBoolean("amount_filter_enabled", false)).thenReturn(true)
-        `when`(mockSharedPreferences.getString("min_amount", "0")).thenReturn("1000")
-        `when`(mockSharedPreferences.getString("max_amount", "999999999")).thenReturn("10000")
-
-        // When
-        val isInRange = amountSettings.isAmountInRange(amount)
-
-        // Then
-        assertFalse(isInRange)
+    fun `shouldReadAmount returns true when amount is blank`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        assertTrue(amountSettings.shouldReadAmount(""))
     }
 
     @Test
-    fun `isAmountInRange should return true when filter is disabled`() {
-        // Given
-        val amount = "500"
-        `when`(mockSharedPreferences.getBoolean("amount_filter_enabled", false)).thenReturn(false)
+    fun `shouldReadAmount returns true when amount is at or below threshold`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        `when`(mockSharedPreferences.getInt("amount_threshold", 100000)).thenReturn(100000)
+        assertTrue(amountSettings.shouldReadAmount("50000"))
+    }
 
-        // When
-        val isInRange = amountSettings.isAmountInRange(amount)
+    @Test
+    fun `shouldReadAmount returns true when amount equals threshold`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        `when`(mockSharedPreferences.getInt("amount_threshold", 100000)).thenReturn(100000)
+        assertTrue(amountSettings.shouldReadAmount("100000"))
+    }
 
-        // Then
-        assertTrue(isInRange)
+    @Test
+    fun `shouldReadAmount returns false when amount exceeds threshold`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        `when`(mockSharedPreferences.getInt("amount_threshold", 100000)).thenReturn(100000)
+        assertFalse(amountSettings.shouldReadAmount("150000"))
+    }
+
+    @Test
+    fun `shouldReadAmount strips non-numeric chars before comparing`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        `when`(mockSharedPreferences.getInt("amount_threshold", 100000)).thenReturn(100000)
+        assertTrue(amountSettings.shouldReadAmount("$50.000"))
+    }
+
+    @Test
+    fun `shouldReadAmount returns true for unparseable amount`() {
+        `when`(mockSharedPreferences.getBoolean("amount_limit_enabled", false)).thenReturn(true)
+        assertTrue(amountSettings.shouldReadAmount("abc"))
     }
 }

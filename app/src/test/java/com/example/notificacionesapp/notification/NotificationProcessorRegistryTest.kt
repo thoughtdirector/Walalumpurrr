@@ -1,13 +1,11 @@
 package com.example.notificacionesapp.notification
 
-import com.example.notificacionesapp.model.NotificationItem
-import com.example.notificacionesapp.notification.processors.DaviPlataNotificationProcessor
-import com.example.notificacionesapp.notification.processors.NequiNotificationProcessor
 import com.example.notificacionesapp.util.NotificationHistoryManager
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mock
+import org.mockito.Mockito.verify
 import org.mockito.junit.MockitoJUnitRunner
 import org.junit.Assert.*
 
@@ -25,141 +23,103 @@ class NotificationProcessorRegistryTest {
     }
 
     @Test
-    fun `getProcessor should return NequiProcessor for Nequi notifications`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
+    fun `processNotification returns message for nequi transfer`() {
+        val result = registry.processNotification(
             packageName = "com.nequi",
             title = "Nequi",
-            text = "Recibiste $50.000",
-            timestamp = System.currentTimeMillis()
+            text = "JUAN PEREZ te envió 50.000, ¡lo mejor!"
         )
-
-        // When
-        val processor = registry.getProcessor(notification)
-
-        // Then
-        assertNotNull(processor)
-        assertTrue(processor is NequiNotificationProcessor)
+        assertNotNull(result)
+        assertTrue(result!!.contains("JUAN PEREZ"))
+        assertTrue(result.contains("50.000"))
     }
 
     @Test
-    fun `getProcessor should return DaviPlataProcessor for DaviPlata notifications`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
+    fun `processNotification returns message for daviplata`() {
+        val result = registry.processNotification(
+            packageName = "com.daviplata",
             title = "DaviPlata",
-            text = "Recibiste $25.000",
-            timestamp = System.currentTimeMillis()
+            text = "Recibió una transferencia de 25.000"
         )
-
-        // When
-        val processor = registry.getProcessor(notification)
-
-        // Then
-        assertNotNull(processor)
-        assertTrue(processor is DaviPlataNotificationProcessor)
+        assertNotNull(result)
+        assertTrue(result!!.contains("DaviPlata"))
     }
 
     @Test
-    fun `getProcessor should return null for unknown notifications`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
+    fun `processNotification returns null for unknown package`() {
+        val result = registry.processNotification(
             packageName = "com.whatsapp",
             title = "WhatsApp",
-            text = "New message",
-            timestamp = System.currentTimeMillis()
+            text = "New message"
         )
-
-        // When
-        val processor = registry.getProcessor(notification)
-
-        // Then
-        assertNull(processor)
+        assertNull(result)
     }
 
     @Test
-    fun `getProcessor should return null for null notification`() {
-        // When
-        val processor = registry.getProcessor(null)
-
-        // Then
-        assertNull(processor)
-    }
-
-    @Test
-    fun `getProcessor should handle case insensitive package names`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "COM.NEQUI",
-            title = "Nequi",
-            text = "Recibiste $50.000",
-            timestamp = System.currentTimeMillis()
-        )
-
-        // When
-        val processor = registry.getProcessor(notification)
-
-        // Then
-        assertNotNull(processor)
-        assertTrue(processor is NequiNotificationProcessor)
-    }
-
-    @Test
-    fun `getProcessor should handle partial package names`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp.debug",
-            title = "DaviPlata",
-            text = "Recibiste $25.000",
-            timestamp = System.currentTimeMillis()
-        )
-
-        // When
-        val processor = registry.getProcessor(notification)
-
-        // Then
-        assertNotNull(processor)
-        assertTrue(processor is DaviPlataNotificationProcessor)
-    }
-
-    @Test
-    fun `getProcessor should return null for empty package name`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
+    fun `processNotification returns null for empty package`() {
+        val result = registry.processNotification(
             packageName = "",
             title = "Test",
-            text = "Test message",
-            timestamp = System.currentTimeMillis()
+            text = "Test message"
         )
-
-        // When
-        val processor = registry.getProcessor(notification)
-
-        // Then
-        assertNull(processor)
+        assertNull(result)
     }
 
     @Test
-    fun `getProcessor should return null for null package name`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = null,
-            title = "Test",
-            text = "Test message",
-            timestamp = System.currentTimeMillis()
+    fun `getLastProcessedMetadata returns metadata after processing`() {
+        registry.processNotification(
+            packageName = "com.nequi",
+            title = "Nequi",
+            text = "JUAN PEREZ te envió 50.000, ¡lo mejor!"
+        )
+        val metadata = registry.getLastProcessedMetadata()
+        assertEquals("Nequi", metadata["appName"])
+        assertEquals("NEQUI", metadata["type"])
+    }
+
+    @Test
+    fun `getLastProcessedMetadata returns empty map before processing`() {
+        val metadata = registry.getLastProcessedMetadata()
+        assertTrue(metadata.isEmpty())
+    }
+
+    @Test
+    fun `processNotification saves to history manager`() {
+        registry.processNotification(
+            packageName = "com.nequi",
+            title = "Nequi",
+            text = "JUAN PEREZ te envió 50.000, ¡lo mejor!"
         )
 
-        // When
-        val processor = registry.getProcessor(notification)
+        verify(mockHistoryManager).saveNotification(
+            packageName = org.mockito.ArgumentMatchers.eq("com.nequi"),
+            appName = org.mockito.ArgumentMatchers.eq("Nequi"),
+            title = org.mockito.ArgumentMatchers.eq("Transferencia recibida"),
+            content = org.mockito.ArgumentMatchers.anyString(),
+            type = org.mockito.ArgumentMatchers.eq("NEQUI"),
+            amount = org.mockito.ArgumentMatchers.anyString(),
+            sender = org.mockito.ArgumentMatchers.eq("JUAN PEREZ")
+        )
+    }
 
-        // Then
-        assertNull(processor)
+    @Test
+    fun `processNotification works with null history manager`() {
+        val registryNoHistory = NotificationProcessorRegistry(null)
+        val result = registryNoHistory.processNotification(
+            packageName = "com.nequi",
+            title = "Nequi",
+            text = "JUAN PEREZ te envió 50.000, ¡lo mejor!"
+        )
+        assertNotNull(result)
+    }
+
+    @Test
+    fun `processNotification returns null when processor matches but text does not`() {
+        val result = registry.processNotification(
+            packageName = "com.nequi",
+            title = "Nequi",
+            text = "Actualización de seguridad"
+        )
+        assertNull(result)
     }
 }

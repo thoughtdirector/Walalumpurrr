@@ -1,158 +1,94 @@
 package com.example.notificacionesapp.notification.processors
 
-import com.example.notificacionesapp.model.NotificationItem
-import com.example.notificacionesapp.util.NotificationHistoryManager
 import org.junit.Before
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.mockito.Mock
-import org.mockito.junit.MockitoJUnitRunner
 import org.junit.Assert.*
 
-@RunWith(MockitoJUnitRunner::class)
 class DaviPlataNotificationProcessorTest {
-
-    @Mock
-    private lateinit var mockHistoryManager: NotificationHistoryManager
 
     private lateinit var processor: DaviPlataNotificationProcessor
 
     @Before
     fun setUp() {
-        processor = DaviPlataNotificationProcessor(mockHistoryManager)
+        processor = DaviPlataNotificationProcessor()
     }
 
     @Test
-    fun `canProcess should return true for DaviPlata notifications`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
+    fun `canProcess returns true for daviplata package`() {
+        assertTrue(processor.canProcess("com.davivienda.daviplataapp"))
+    }
+
+    @Test
+    fun `canProcess returns true for package containing daviplata`() {
+        assertTrue(processor.canProcess("com.daviplata.debug"))
+    }
+
+    @Test
+    fun `canProcess returns false for unrelated package`() {
+        assertFalse(processor.canProcess("com.whatsapp"))
+    }
+
+    @Test
+    fun `processNotification returns message for Recibio text`() {
+        val result = processor.processNotification(
             title = "DaviPlata",
-            text = "Recibiste $25.000",
-            timestamp = System.currentTimeMillis()
+            text = "Recibió una transferencia de 25.000",
+            packageName = "com.daviplata"
         )
-
-        // When
-        val canProcess = processor.canProcess(notification)
-
-        // Then
-        assertTrue(canProcess)
-    }
-
-    @Test
-    fun `canProcess should return false for non-DaviPlata notifications`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.whatsapp",
-            title = "WhatsApp",
-            text = "New message",
-            timestamp = System.currentTimeMillis()
-        )
-
-        // When
-        val canProcess = processor.canProcess(notification)
-
-        // Then
-        assertFalse(canProcess)
-    }
-
-    @Test
-    fun `process should extract amount from DaviPlata notification`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
-            title = "DaviPlata",
-            text = "Recibiste $25.000 de Carlos López",
-            timestamp = System.currentTimeMillis()
-        )
-
-        // When
-        val result = processor.process(notification)
-
-        // Then
         assertNotNull(result)
-        assertTrue(result.contains("25.000"))
-        assertTrue(result.contains("Carlos López"))
+        assertTrue(result!!.startsWith("DaviPlata: "))
+        assertTrue(result.contains("Recibió"))
     }
 
     @Test
-    fun `process should handle different amount formats`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
+    fun `processNotification returns message for movimientos text`() {
+        val result = processor.processNotification(
             title = "DaviPlata",
-            text = "Recibiste $2.000.000 de Ana Rodríguez",
-            timestamp = System.currentTimeMillis()
+            text = "Tienes nuevos movimientos en tu cuenta",
+            packageName = "com.daviplata"
         )
-
-        // When
-        val result = processor.process(notification)
-
-        // Then
         assertNotNull(result)
-        assertTrue(result.contains("2.000.000"))
-        assertTrue(result.contains("Ana Rodríguez"))
+        assertTrue(result!!.contains("movimientos"))
     }
 
     @Test
-    fun `process should handle notifications without amounts`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
+    fun `processNotification returns null for non-matching text`() {
+        val result = processor.processNotification(
             title = "DaviPlata",
-            text = "Tu cuenta ha sido actualizada",
-            timestamp = System.currentTimeMillis()
+            text = "Promoción especial para ti",
+            packageName = "com.daviplata"
         )
-
-        // When
-        val result = processor.process(notification)
-
-        // Then
-        assertNotNull(result)
-        assertTrue(result.contains("DaviPlata"))
-        assertTrue(result.contains("cuenta"))
+        assertNull(result)
     }
 
     @Test
-    fun `process should handle empty text`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
+    fun `processNotification returns null for empty text`() {
+        val result = processor.processNotification(
             title = "DaviPlata",
             text = "",
-            timestamp = System.currentTimeMillis()
+            packageName = "com.daviplata"
         )
-
-        // When
-        val result = processor.process(notification)
-
-        // Then
-        assertNotNull(result)
-        assertTrue(result.contains("DaviPlata"))
+        assertNull(result)
     }
 
     @Test
-    fun `process should handle null text`() {
-        // Given
-        val notification = NotificationItem(
-            id = "1",
-            packageName = "com.davivienda.daviplataapp",
-            title = "DaviPlata",
-            text = null,
-            timestamp = System.currentTimeMillis()
-        )
+    fun `getMetadata extracts app name and type`() {
+        val metadata = processor.getMetadata("DaviPlata", "Recibió 25.000", "DaviPlata: Recibió 25.000")
+        assertEquals("DaviPlata", metadata["appName"])
+        assertEquals("DAVIPLATA", metadata["type"])
+        assertEquals("DaviPlata", metadata["title"])
+    }
 
-        // When
-        val result = processor.process(notification)
+    @Test
+    fun `getMetadata extracts amount with decimals`() {
+        val metadata = processor.getMetadata("DaviPlata", "Recibió 25,500 pesos", "DaviPlata: Recibió 25,500")
+        assertEquals("25,500", metadata["amount"])
+    }
 
-        // Then
-        assertNotNull(result)
-        assertTrue(result.contains("DaviPlata"))
+    @Test
+    fun `getMetadata handles text without amount`() {
+        val metadata = processor.getMetadata("DaviPlata", "movimientos en tu cuenta", "DaviPlata: movimientos")
+        assertEquals("DaviPlata", metadata["appName"])
+        assertNull(metadata["amount"])
     }
 }
