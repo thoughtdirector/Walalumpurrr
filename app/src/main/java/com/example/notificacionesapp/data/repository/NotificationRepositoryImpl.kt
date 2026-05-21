@@ -88,6 +88,25 @@ class NotificationRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getNotificationsSince(timestampMs: Long): Result<List<Notification>> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
+                val sinceIso = dateFormat.format(Date(timestampMs))
+                val dtos: List<NotificationDto> = supabaseClient.from("relayed_notifications")
+                    .select {
+                        filter { gt("timestamp", sinceIso) }
+                        order("timestamp", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                        limit(10)
+                    }
+                    .decodeList()
+                Result.Success(dtos.map { it.toDomainNotification() })
+            } catch (e: Exception) {
+                Result.Error(e)
+            }
+        }
+    }
+
     override suspend fun getAllNotifications(): Result<List<Notification>> {
         return withContext(Dispatchers.IO) {
             try {

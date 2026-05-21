@@ -18,15 +18,15 @@ class AmountSettings(private val context: Context) {
     }
 
     fun setAmountLimitEnabled(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_AMOUNT_LIMIT_ENABLED, enabled).apply()
+        prefs.edit().putBoolean(KEY_AMOUNT_LIMIT_ENABLED, enabled).commit()
+    }
+
+    fun setAmountThreshold(threshold: Int) {
+        prefs.edit().putInt(KEY_AMOUNT_THRESHOLD, threshold).commit()
     }
 
     fun getAmountThreshold(): Int {
         return prefs.getInt(KEY_AMOUNT_THRESHOLD, DEFAULT_AMOUNT_THRESHOLD)
-    }
-
-    fun setAmountThreshold(threshold: Int) {
-        prefs.edit().putInt(KEY_AMOUNT_THRESHOLD, threshold).apply()
     }
 
     fun shouldReadAmount(amount: String?): Boolean {

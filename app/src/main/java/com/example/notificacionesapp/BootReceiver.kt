@@ -25,6 +25,7 @@ class BootReceiver : BroadcastReceiver() {
                 if (shouldBeActive) {
                     val serviceIntent = Intent(context, NotificationService::class.java).apply {
                         action = NotificationService.ACTION_START_SERVICE
+                        putExtra("scheduled", true)
                     }
 
                     try {

@@ -24,6 +24,7 @@ class ScheduleReceiver : BroadcastReceiver() {
                     // Activar servicio directamente
                     val serviceIntent = Intent(context, NotificationService::class.java)
                     serviceIntent.action = NotificationService.ACTION_START_SERVICE
+                    serviceIntent.putExtra("scheduled", true)
 
                     try {
                         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -119,7 +119,7 @@ class ScheduleManager(private val context: Context) {
             putInt(KEY_START_MINUTE, startMinute)
             putInt(KEY_END_HOUR, endHour)
             putInt(KEY_END_MINUTE, endMinute)
-        }.apply()
+        }.commit()  // commit() síncrono para que setScheduleAlarms() lea el valor actualizado
 
         cancelScheduleAlarms()
         if (isEnabled) {
@@ -382,7 +382,7 @@ class ScheduleManager(private val context: Context) {
             putBoolean(KEY_FRIDAY, friday)
             putBoolean(KEY_SATURDAY, saturday)
             putBoolean(KEY_SUNDAY, sunday)
-        }.apply()
+        }.commit()  // commit() síncrono
 
         if (isScheduleEnabled()) {
             cancelScheduleAlarms()

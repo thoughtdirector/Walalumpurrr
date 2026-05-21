@@ -55,9 +55,12 @@ class NotificationService : NotificationListenerService() {
     private var pollingJob: kotlinx.coroutines.Job? = null
     private var lastSavedContent: String = ""
     private var lastSavedTime: Long = 0L
+    private var muteLocalTts: Boolean = false  // cache en memoria
+    private var idlePolls: Int = 0  // contador para backoff
 
     companion object {
         var isServiceActive = false
+        private const val DEBUG_TTS = false  // cambiar a true solo para debug
         const val ACTION_START_SERVICE = "com.example.notificacionesapp.START_SERVICE"
         const val ACTION_STOP_SERVICE = "com.example.notificacionesapp.STOP_SERVICE"
         const val ACTION_UPDATE_APP_SETTINGS = "com.example.notificacionesapp.UPDATE_APP_SETTINGS"
@@ -94,28 +97,30 @@ class NotificationService : NotificationListenerService() {
             var firstPoll = true
             while (isActive) {
                 try {
-                    delay(if (firstPoll) 3000L else 5000L)
+                    // Backoff: 8s normal, max 15s después de 5 polls sin novedad
+                    val interval = if (idlePolls >= 5) 15_000L else 8_000L
+                    delay(if (firstPoll) 3_000L else interval)
                     if (!isServiceActive) continue
 
                     when (val result = notificationRepository.getAllNotifications()) {
                         is Result.Success -> {
                             val all = result.data.sortedBy { it.timestamp }
-                            // Guardar timestamp base antes del filtro
-                            val previousTimestamp = lastSeenTimestamp
-                            // Siempre sincronizar al último timestamp conocido
+                            val previousTs = lastSeenTimestamp
                             if (all.isNotEmpty()) {
                                 lastSeenTimestamp = all.last().timestamp.time
                             }
-                            val newNotifications = all.filter { it.timestamp.time > previousTimestamp }
-                            Log.d("TTS_DEBUG", "[PASO2] Total en Supabase: ${all.size}, nuevas desde $previousTimestamp: ${newNotifications.size}")
+                            val newOnes = all.filter { it.timestamp.time > previousTs }
+                            if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO2] Total: ${all.size}, nuevas: ${newOnes.size}, idle=$idlePolls")
 
-                            if (newNotifications.isNotEmpty()) {
-                                val latest = newNotifications.last()
+                            if (newOnes.isNotEmpty()) {
+                                val latest = newOnes.last()
                                 val message = "${latest.appName}: ${latest.content}"
-                                Log.d("TTS_DEBUG", "[PASO3] Detectada nueva: $message")
+                                if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO3] Detectada nueva: $message")
                                 speakOut(message)
+                                idlePolls = 0
                             } else {
-                                Log.d("TTS_DEBUG", "[PASO2] Sin notificaciones nuevas")
+                                idlePolls++
+                                if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO2] Sin notificaciones nuevas")
                             }
                         }
                         is Result.Error -> {
@@ -149,7 +154,8 @@ class NotificationService : NotificationListenerService() {
             appSettings["com.daviplata.app"] = prefs.getBoolean("app_daviplata", true)
             appSettings["com.bancolombia.app"] = prefs.getBoolean("app_bancolombia", true)
             appSettings["com.whatsapp"] = prefs.getBoolean("app_whatsapp", true)
-            Log.d("NotificationService", "Configuración cargada: $appSettings")
+            muteLocalTts = prefs.getBoolean("mute_local_tts", false)  // cache en memoria
+            Log.d("NotificationService", "Configuración cargada, mute=$muteLocalTts")
         } catch (e: Exception) {
             Log.e("NotificationService", "Error al cargar configuración: ${e.message}")
         }
@@ -215,15 +221,8 @@ class NotificationService : NotificationListenerService() {
                 supabaseManager.broadcastNotification(title, message, amount, sender)
 
                 if (amountSettings.shouldReadAmount(amount)) {
-                    val muted = getSharedPreferences("app_settings", Context.MODE_PRIVATE)
-                        .getBoolean("mute_local_tts", false)
-                    if (!muted) {
-                        Log.d("TTS_DEBUG", "[ADMIN_DIRECTO] speakOut desde onNotificationPosted")
-                        speakOut(message)
-                        lastSeenTimestamp = System.currentTimeMillis()
-                    } else {
-                        Log.d("TTS_DEBUG", "[ADMIN_DIRECTO] Silenciado por mute_local_tts")
-                    }
+                    speakOut(message)
+                    lastSeenTimestamp = System.currentTimeMillis()
                 } else {
                     Log.d("NotificationService", "Notificación no leída por límite de monto: $amount")
                 }
@@ -252,8 +251,11 @@ class NotificationService : NotificationListenerService() {
                 ACTION_START_SERVICE -> {
                     isServiceActive = true
                     startForeground()
+                    // Solo habla si lo prendió el horario, no el usuario manualmente
+                    if (intent?.getBooleanExtra("scheduled", false) == true) {
+                        speakOut("Servicio de lectura activado por horario")
+                    }
                     Log.d("NotificationService", "Servicio activado")
-                    speakOut("Servicio de lectura activado")
                 }
                 ACTION_STOP_SERVICE -> {
                     isServiceActive = false
@@ -317,16 +319,20 @@ class NotificationService : NotificationListenerService() {
     }
 
     private fun speakOut(text: String) {
-        Log.d("TTS_DEBUG", "[PASO4] speakOut llamado: $text")
+        if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO4] speakOut llamado: $text")
         if (!isServiceActive) {
-            Log.d("TTS_DEBUG", "[PASO4] Abortado: isServiceActive=false")
+            if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO4] Abortado: isServiceActive=false")
+            return
+        }
+        if (muteLocalTts) {
+            if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO4] Silenciado por mute_local_tts")
             return
         }
         val intent = Intent("com.example.notificacionesapp.TTS_SPEAK")
         intent.putExtra("text", text)
         intent.setPackage(packageName)
         sendBroadcast(intent)
-        Log.d("TTS_DEBUG", "[PASO5] Broadcast TTS_SPEAK enviado")
+        if (DEBUG_TTS) Log.d("TTS_DEBUG", "[PASO5] Broadcast TTS_SPEAK enviado")
     }
 
     override fun onDestroy() {

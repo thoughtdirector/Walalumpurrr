@@ -110,7 +110,7 @@ class SettingsFragment : BaseFragment<FragmentSettingsBinding>() {
                 putBoolean("app_bancolombia", binding.bancolombiaSwitch.isChecked)
                 putBoolean("app_whatsapp", binding.whatsappSwitch.isChecked)
                 putBoolean("mute_local_tts", binding.muteLocalSwitch.isChecked)
-            }.apply()
+            }.commit()  // commit() síncrono para que el servicio lea los valores actualizados
 
             // Guardar configuración de montos
             amountSettings.setAmountLimitEnabled(binding.amountLimitSwitch.isChecked)

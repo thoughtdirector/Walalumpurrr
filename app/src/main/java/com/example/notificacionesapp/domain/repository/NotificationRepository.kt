@@ -18,6 +18,11 @@ interface NotificationRepository {
      * Get all notifications
      */
     suspend fun getAllNotifications(): Result<List<Notification>>
+
+    /**
+     * Get notifications since a given timestamp (optimized polling)
+     */
+    suspend fun getNotificationsSince(timestampMs: Long): Result<List<Notification>>
     
     /**
      * Get notifications by type
