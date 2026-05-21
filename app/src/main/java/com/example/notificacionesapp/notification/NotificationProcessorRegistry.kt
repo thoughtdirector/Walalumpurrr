@@ -6,25 +6,11 @@ import com.example.notificacionesapp.notification.processors.NequiNotificationPr
 import com.example.notificacionesapp.util.NotificationHistoryManager
 
 class NotificationProcessorRegistry(private val historyManager: NotificationHistoryManager?) {
-    private val processors = mutableListOf<NotificationProcessor>()
+    private val processors = listOf<NotificationProcessor>(
+        NequiNotificationProcessor(),
+        DaviPlataNotificationProcessor()
+    )
     private var lastMetadata: Map<String, String> = emptyMap()
-
-    init {
-        registerDefaultProcessors()
-    }
-
-    private fun registerDefaultProcessors() {
-        val factory = NotificationProcessorFactory
-
-        processors.add(factory.createProcessor(NotificationProcessorFactory.ProcessorType.NEQUI))
-        processors.add(factory.createProcessor(NotificationProcessorFactory.ProcessorType.DAVIPLATA))
-    }
-
-
-    fun addProcessor(processor: NotificationProcessor) {
-        processors.add(processor)
-    }
-
 
     fun processNotification(packageName: String, title: String, text: String): String? {
         for (processor in processors) {
@@ -33,7 +19,6 @@ class NotificationProcessorRegistry(private val historyManager: NotificationHist
                     val message = processor.processNotification(title, text, packageName)
 
                     if (message != null) {
-                        // Guardar los metadatos para acceso posterior
                         lastMetadata = processor.getMetadata(title, text, message)
 
                         historyManager?.let {
@@ -65,5 +50,4 @@ class NotificationProcessorRegistry(private val historyManager: NotificationHist
     fun getLastProcessedMetadata(): Map<String, String> {
         return lastMetadata
     }
-
 }

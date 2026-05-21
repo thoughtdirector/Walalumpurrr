@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("dagger.hilt.android.plugin")
     id("kotlin-kapt")
@@ -38,12 +37,7 @@ android {
     buildFeatures {
         viewBinding = true
     }
-    
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
@@ -58,16 +52,16 @@ dependencies {
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
     implementation("androidx.cardview:cardview:1.0.0")
     implementation("com.google.code.gson:gson:2.10.1")
-    
+
     // Hilt Dependency Injection
     implementation("com.google.dagger:hilt-android:2.48")
     kapt("com.google.dagger:hilt-compiler:2.48")
-    
+
     // ViewModel and LiveData
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
-    
+
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
@@ -75,29 +69,24 @@ dependencies {
     implementation("androidx.navigation:navigation-fragment-ktx:2.7.5")
     implementation("androidx.navigation:navigation-ui-ktx:2.7.5")
 
-    // Componentes de Android existentes
-    implementation(libs.androidx.ui.graphics.android)
-    implementation(libs.androidx.foundation.android)
-    implementation(libs.androidx.material3.android)
-
-    // Supabase (versiones actualizadas y consolidadas)
-    implementation(platform("io.github.jan-tennert.supabase:bom:2.6.0")) // Usar BOM para gestionar versiones
+    // Supabase
+    implementation(platform("io.github.jan-tennert.supabase:bom:2.6.0"))
     implementation("io.github.jan-tennert.supabase:postgrest-kt")
     implementation("io.github.jan-tennert.supabase:realtime-kt")
-    implementation("io.github.jan-tennert.supabase:gotrue-kt") // Para autenticación con JWT
+    implementation("io.github.jan-tennert.supabase:gotrue-kt")
 
     // Kotlin Serialization (requerido por Supabase-kt)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
-    // Ktor (requerido por Supabase-kt, si no se usa el BOM)
+    // Ktor (requerido por Supabase-kt)
     implementation("io.ktor:ktor-client-android:2.3.7")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.7")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.7")
 
-    // Google Sign-In (añadido para autenticación con Google)
+    // Google Sign-In
     implementation("com.google.android.gms:play-services-auth:20.7.0")
 
-    // Testing dependencies
+    // Testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.mockito:mockito-core:5.5.0")
     testImplementation("org.mockito.kotlin:mockito-kotlin:5.1.0")
@@ -108,11 +97,10 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.11.1")
     testImplementation("androidx.arch.core:core-testing:2.2.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
-    
-    // Android Test dependencies
+
+    // Android Test
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
     androidTestImplementation("androidx.test:runner:1.5.2")
     androidTestImplementation("androidx.test:rules:1.5.0")
-
 }

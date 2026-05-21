@@ -26,11 +26,11 @@ class SessionManagerTest {
 
     @Before
     fun setUp() {
-        `when`(mockContext.getSharedPreferences(anyString(), anyInt())).thenReturn(mockSharedPreferences)
+        `when`(mockContext.getSharedPreferences(SessionManager.PREF_NAME, Context.MODE_PRIVATE))
+            .thenReturn(mockSharedPreferences)
         `when`(mockSharedPreferences.edit()).thenReturn(mockEditor)
         `when`(mockEditor.putString(anyString(), anyString())).thenReturn(mockEditor)
         `when`(mockEditor.putBoolean(anyString(), anyBoolean())).thenReturn(mockEditor)
-        `when`(mockEditor.apply()).then { }
         `when`(mockEditor.clear()).thenReturn(mockEditor)
         `when`(mockEditor.commit()).thenReturn(true)
 
@@ -38,115 +38,87 @@ class SessionManagerTest {
     }
 
     @Test
-    fun `createLoginSession should save user details correctly`() {
-        // Given
-        val userId = "test_user_123"
-        val email = "test@example.com"
-        val role = "admin"
+    fun `createLoginSession saves all user details`() {
+        sessionManager.createLoginSession("user123", "test@test.com", "admin", "admin456")
 
-        // When
-        sessionManager.createLoginSession(userId, email, role)
-
-        // Then
-        verify(mockEditor).putString(SessionManager.KEY_USER_ID, userId)
-        verify(mockEditor).putString(SessionManager.KEY_USER_EMAIL, email)
-        verify(mockEditor).putString(SessionManager.KEY_USER_ROLE, role)
         verify(mockEditor).putBoolean(SessionManager.KEY_IS_LOGGED_IN, true)
-        verify(mockEditor).apply()
-    }
-
-    @Test
-    fun `getUserDetails should return correct user information`() {
-        // Given
-        val userId = "test_user_123"
-        val email = "test@example.com"
-        val role = "employee"
-        
-        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ID, null)).thenReturn(userId)
-        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_EMAIL, null)).thenReturn(email)
-        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ROLE, null)).thenReturn(role)
-        `when`(mockSharedPreferences.getBoolean(SessionManager.KEY_IS_LOGGED_IN, false)).thenReturn(true)
-
-        // When
-        val userDetails = sessionManager.getUserDetails()
-
-        // Then
-        assertEquals(userId, userDetails[SessionManager.KEY_USER_ID])
-        assertEquals(email, userDetails[SessionManager.KEY_USER_EMAIL])
-        assertEquals(role, userDetails[SessionManager.KEY_USER_ROLE])
-        assertTrue(userDetails[SessionManager.KEY_IS_LOGGED_IN]?.toBoolean() ?: false)
-    }
-
-    @Test
-    fun `isLoggedIn should return true when user is logged in`() {
-        // Given
-        `when`(mockSharedPreferences.getBoolean(SessionManager.KEY_IS_LOGGED_IN, false)).thenReturn(true)
-
-        // When
-        val isLoggedIn = sessionManager.isLoggedIn()
-
-        // Then
-        assertTrue(isLoggedIn)
-    }
-
-    @Test
-    fun `isLoggedIn should return false when user is not logged in`() {
-        // Given
-        `when`(mockSharedPreferences.getBoolean(SessionManager.KEY_IS_LOGGED_IN, false)).thenReturn(false)
-
-        // When
-        val isLoggedIn = sessionManager.isLoggedIn()
-
-        // Then
-        assertFalse(isLoggedIn)
-    }
-
-    @Test
-    fun `logoutUser should clear all user data`() {
-        // When
-        sessionManager.logoutUser()
-
-        // Then
-        verify(mockEditor).clear()
+        verify(mockEditor).putString(SessionManager.KEY_USER_ID, "user123")
+        verify(mockEditor).putString(SessionManager.KEY_USER_EMAIL, "test@test.com")
+        verify(mockEditor).putString(SessionManager.KEY_USER_ROLE, "admin")
+        verify(mockEditor).putString(SessionManager.KEY_ADMIN_ID, "admin456")
         verify(mockEditor).commit()
     }
 
     @Test
-    fun `getUserId should return correct user ID`() {
-        // Given
-        val userId = "test_user_456"
-        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ID, null)).thenReturn(userId)
+    fun `createLoginSession with null adminId`() {
+        sessionManager.createLoginSession("user123", "test@test.com", "employee")
 
-        // When
-        val result = sessionManager.getUserId()
-
-        // Then
-        assertEquals(userId, result)
+        verify(mockEditor).putString(SessionManager.KEY_ADMIN_ID, null)
+        verify(mockEditor).commit()
     }
 
     @Test
-    fun `getUserEmail should return correct email`() {
-        // Given
-        val email = "user@test.com"
-        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_EMAIL, null)).thenReturn(email)
-
-        // When
-        val result = sessionManager.getUserEmail()
-
-        // Then
-        assertEquals(email, result)
+    fun `isLoggedIn returns true when logged in`() {
+        `when`(mockSharedPreferences.getBoolean(SessionManager.KEY_IS_LOGGED_IN, false)).thenReturn(true)
+        assertTrue(sessionManager.isLoggedIn())
     }
 
     @Test
-    fun `getUserRole should return correct role`() {
-        // Given
-        val role = "admin"
-        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ROLE, null)).thenReturn(role)
+    fun `isLoggedIn returns false when not logged in`() {
+        `when`(mockSharedPreferences.getBoolean(SessionManager.KEY_IS_LOGGED_IN, false)).thenReturn(false)
+        assertFalse(sessionManager.isLoggedIn())
+    }
 
-        // When
-        val result = sessionManager.getUserRole()
+    @Test
+    fun `getUserDetails returns all stored fields`() {
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ID, null)).thenReturn("user123")
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_EMAIL, null)).thenReturn("test@test.com")
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ROLE, null)).thenReturn("admin")
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_ADMIN_ID, null)).thenReturn("admin456")
 
-        // Then
-        assertEquals(role, result)
+        val details = sessionManager.getUserDetails()
+
+        assertEquals("user123", details[SessionManager.KEY_USER_ID])
+        assertEquals("test@test.com", details[SessionManager.KEY_USER_EMAIL])
+        assertEquals("admin", details[SessionManager.KEY_USER_ROLE])
+        assertEquals("admin456", details[SessionManager.KEY_ADMIN_ID])
+    }
+
+    @Test
+    fun `getUserId returns stored user ID`() {
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ID, null)).thenReturn("user123")
+        assertEquals("user123", sessionManager.getUserId())
+    }
+
+    @Test
+    fun `getUserId returns null when not set`() {
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ID, null)).thenReturn(null)
+        assertNull(sessionManager.getUserId())
+    }
+
+    @Test
+    fun `getUserRole returns stored role`() {
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_USER_ROLE, null)).thenReturn("employee")
+        assertEquals("employee", sessionManager.getUserRole())
+    }
+
+    @Test
+    fun `getAdminId returns stored admin ID`() {
+        `when`(mockSharedPreferences.getString(SessionManager.KEY_ADMIN_ID, null)).thenReturn("admin456")
+        assertEquals("admin456", sessionManager.getAdminId())
+    }
+
+    @Test
+    fun `updateUserRole saves new role`() {
+        sessionManager.updateUserRole("admin")
+        verify(mockEditor).putString(SessionManager.KEY_USER_ROLE, "admin")
+        verify(mockEditor).commit()
+    }
+
+    @Test
+    fun `logoutUser clears all data`() {
+        sessionManager.logoutUser()
+        verify(mockEditor).clear()
+        verify(mockEditor).commit()
     }
 }
