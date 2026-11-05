@@ -30,6 +30,18 @@
         <item name="android:windowActivityTransitions">true</item>
     </style>
 
+    <!-- Tema exclusivo de la versión Lite -->
+    <style name="Theme.NotificacionesApp.Lite" parent="Theme.NotificacionesApp">
+        <item name="android:windowBackground">@drawable/bg_app_gradient</item>
+    </style>
+
+    <!-- Indicador activo de la navegación inferior Lite -->
+    <style name="Widget.NotiBank.BottomNavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">#2EFF7F50</item>
+        <item name="android:width">64dp</item>
+        <item name="android:height">32dp</item>
+    </style>
+
     <!-- Tema transparente para actividad de transición -->
     <style name="Theme.TransparentActivity" parent="Theme.MaterialComponents.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>

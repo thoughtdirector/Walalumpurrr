@@ -41,4 +41,35 @@
     <string name="amount_limit_disabled">Límite de monto desactivado</string>
     <string name="default_web_client_id">55580771174-d1dq71f2m8tabiduv69mggcn9jbpi5ng.apps.googleusercontent.com</string>
 
+    <!-- Lite strings -->
+    <string name="service_session_expired">⏰ Sesión expirada</string>
+    <string name="session_not_started">Sesión: No iniciada</string>
+    <string name="session_expired">Sesión expirada</string>
+    <string name="session_time_remaining">Tiempo restante: %1$d h %2$d min</string>
+
+    <!-- Lite Settings -->
+    <string name="settings_title">Ajustes</string>
+    <string name="settings_banks">Bancos activos</string>
+    <string name="settings_bank_nequi">Nequi</string>
+    <string name="settings_bank_daviplata">DaviPlata</string>
+    <string name="settings_amount_limit">Filtrar por monto</string>
+    <string name="settings_amount_limit_desc">Solo leer notificaciones con montos menores al límite</string>
+    <string name="settings_amount_threshold">Límite de monto (pesos)</string>
+    <string name="settings_save">Guardar</string>
+    <string name="settings_saved">Configuración guardada</string>
+    <string name="btn_settings">Configuración</string>
+
+    <!-- Lite Home -->
+    <string name="lite_home_brand">NOTIBANK LITE</string>
+    <string name="lite_home_title">Asistente de voz</string>
+    <string name="lite_home_subtitle">Lee en voz alta tus notificaciones bancarias</string>
+    <string name="lite_status_active">Escuchando notificaciones</string>
+    <string name="lite_status_inactive">Servicio apagado</string>
+    <string name="lite_status_expired">Sesión expirada</string>
+    <string name="lite_session_not_started">Sesión: sin iniciar</string>
+    <string name="lite_volume_label">Volumen de notificación</string>
+    <string name="lite_volume_value">%1$d%%</string>
+    <string name="lite_volume_test">Probar volumen</string>
+    <string name="lite_service_disconnected">Servicio de notificaciones desactivado, vuelve a conectarte</string>
+
 </resources>
