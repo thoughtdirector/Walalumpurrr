@@ -13,6 +13,9 @@
 
     <!-- Permisos para Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Necesario para que el deslizador de volumen aplique el cambio -->
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
     
     <!-- Removed unused permissions: RECORD_AUDIO, MODIFY_AUDIO_SETTINGS -->
 
@@ -28,12 +31,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:launchMode="singleTask" />
 
         <!-- Removed unused ScheduleActivity -->
 
@@ -53,6 +51,16 @@
             android:name=".ThemeActivity"
             android:exported="false"
             android:theme="@style/Theme.TransparentActivity" />
+
+        <activity
+            android:name=".MainActivityLite"
+            android:theme="@style/Theme.NotificacionesApp.Lite"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
 
         <service
             android:name=".NotificationService"
@@ -79,6 +87,14 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".SessionExpirationReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.example.notificacionesapp.SESSION_EXPIRED" />
             </intent-filter>
         </receiver>
 
