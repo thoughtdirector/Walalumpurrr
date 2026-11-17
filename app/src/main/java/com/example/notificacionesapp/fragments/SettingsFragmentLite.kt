@@ -10,6 +10,9 @@ import android.widget.Toast
 import com.example.notificacionesapp.R
 import com.example.notificacionesapp.databinding.FragmentSettingsLiteBinding
 import com.example.notificacionesapp.util.AmountSettings
+import com.example.notificacionesapp.util.CurrencyTextWatcher
+import java.text.NumberFormat
+import java.util.Locale
 
 class SettingsFragmentLite : BaseFragment<FragmentSettingsLiteBinding>() {
 
@@ -27,6 +30,9 @@ class SettingsFragmentLite : BaseFragment<FragmentSettingsLiteBinding>() {
 
         loadSettings()
 
+        // Aplicar formateador de miles al campo de monto
+        binding.inputAmountThreshold.addTextChangedListener(CurrencyTextWatcher())
+
         binding.btnSaveSettings.setOnClickListener {
             saveSettings()
         }
@@ -43,7 +49,8 @@ class SettingsFragmentLite : BaseFragment<FragmentSettingsLiteBinding>() {
             // Filtro por monto
             binding.checkAmountLimit.isChecked = amountSettings?.isAmountLimitEnabled() ?: false
             val threshold = amountSettings?.getAmountThreshold() ?: 100000
-            binding.inputAmountThreshold.setText(threshold.toString())
+            val formatted = NumberFormat.getInstance(Locale.getDefault()).format(threshold)
+            binding.inputAmountThreshold.setText(formatted)
         } catch (e: Exception) {
             Log.w("SettingsFragmentLite", "Error al cargar configuración: ${e.message}")
             Toast.makeText(requireContext(), "Error al cargar configuración", Toast.LENGTH_SHORT).show()

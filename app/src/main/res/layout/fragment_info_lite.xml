@@ -12,7 +12,7 @@
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingHorizontal="24dp"
+        android:paddingHorizontal="20dp"
         android:paddingBottom="32dp">
 
         <!-- Encabezado de marca -->
@@ -57,9 +57,9 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
             android:fontFamily="sans-serif"
-            android:text="Guía de uso"
+            android:text="Guía rápida"
             android:textColor="@color/white"
-            android:textSize="28sp"
+            android:textSize="26sp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/headerBadge" />
@@ -68,228 +68,318 @@
             android:id="@+id/subtitleText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
+            android:layout_marginTop="6dp"
             android:fontFamily="sans-serif"
-            android:text="Todo lo que necesitas saber para usar NotiBank Lite"
+            android:text="Todo lo que necesitas para usar NotiBank Lite"
             android:textColor="@color/text_secondary"
             android:textSize="14sp"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/titleText" />
 
-        <!-- Sección 1: Activar servicio -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:orientation="horizontal"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subtitleText">
-
-            <TextView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_dot"
-                android:backgroundTint="@color/power_coral"
-                android:fontFamily="sans-serif-medium"
-                android:gravity="center"
-                android:text="1"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="Activar el servicio"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="4dp"
-            android:text="• Pulsa el botón circular de encendido en Inicio.\n• El servicio leerá tus notificaciones bancarias en voz alta, incluso con la app cerrada.\n• La sesión dura 4 horas. Al acabar, el servicio se detiene automáticamente.\n• Puedes reactivarlo todas las veces que quieras."
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
-
-        <!-- Sección 2: Permisos -->
-        <LinearLayout
+        <!-- Tarjeta 1: Activar servicio -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStep1"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:orientation="horizontal"
+            app:cardBackgroundColor="#1AFFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#26FFFFFF"
+            app:strokeWidth="1dp"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/subtitleText">
 
-            <TextView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_dot"
-                android:backgroundTint="@color/status_waiting"
-                android:fontFamily="sans-serif-medium"
-                android:gravity="center"
-                android:text="2"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="Permisos necesarios"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal"
+                android:padding="16dp">
 
-        </LinearLayout>
+                <TextView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_dot"
+                    android:backgroundTint="@color/power_coral"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="1"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-        <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Activar servicio"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="sans-serif"
+                        android:lineSpacingExtra="2dp"
+                        android:text="Pulsa el botón de encendido en Inicio. El servicio leerá tus notificaciones bancarias en voz alta, incluso con la app cerrada."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Tarjeta 2: Permisos -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStep2"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="4dp"
-            android:text="Para que la app funcione correctamente debes conceder:\n\n🔹 Acceso a notificaciones\nAjustes &gt; Apps &gt; NotiBank Lite &gt; Permisos &gt; &quot;Acceso a notificaciones&quot; &gt; ACTIVADO.\nSin este permiso la app no puede leer las notificaciones entrantes.\n\n🔹 Alarmas exactas (Android 12+)\nPermite que la app programe alarmas para detectar el fin de la sesión en segundo plano.\n\n🔹 Notificaciones (Android 13+)\nActiva las notificaciones de la app para recibir el aviso de voz del sistema."
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
-
-        <!-- Sección 3: Volumen -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:orientation="horizontal"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1AFFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#26FFFFFF"
+            app:strokeWidth="1dp"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subtitleText">
+            app:layout_constraintTop_toBottomOf="@id/cardStep1">
 
-            <TextView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_dot"
-                android:backgroundTint="@color/status_active"
-                android:fontFamily="sans-serif-medium"
-                android:gravity="center"
-                android:text="3"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="Volumen de notificación"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal"
+                android:padding="16dp">
 
-        </LinearLayout>
+                <TextView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_dot"
+                    android:backgroundTint="@color/status_waiting"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="2"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-        <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Permisos necesarios"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="sans-serif"
+                        android:lineSpacingExtra="2dp"
+                        android:text="Ajustes → Apps → NotiBank → Permisos → Acceso a notificaciones → ACTIVADO. Sin esto, no se pueden leer las notificaciones entrantes."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Tarjeta 3: Volumen -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStep3"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="4dp"
-            android:text="• Usa el botón &quot;Probar volumen&quot; en Inicio para escuchar el nivel de voz.\n• La prueba y las notificaciones reales usan el mismo motor de TTS.\n• El volumen real depende del nivel de &quot;Notificaciones&quot; en Ajustes del sistema.\n• La app no modifica silenciosamente el volumen del dispositivo."
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
-
-        <!-- Sección 4: Ajustes -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:orientation="horizontal"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1AFFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#26FFFFFF"
+            app:strokeWidth="1dp"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subtitleText">
+            app:layout_constraintTop_toBottomOf="@id/cardStep2">
 
-            <TextView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_dot"
-                android:backgroundTint="@color/power_coral"
-                android:fontFamily="sans-serif-medium"
-                android:gravity="center"
-                android:text="4"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="Configuración (Ajustes)"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal"
+                android:padding="16dp">
 
-        </LinearLayout>
+                <TextView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_dot"
+                    android:backgroundTint="@color/status_active"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="3"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-        <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Volumen de notificación"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="sans-serif"
+                        android:lineSpacingExtra="2dp"
+                        android:text="Usa el botón “Probar volumen” en Inicio. La prueba y las notificaciones reales usan el mismo motor de voz."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Tarjeta 4: Ajustes -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStep4"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="4dp"
-            android:text="En la pestaña Ajustes puedes:\n\n🔹 Seleccionar los bancos activos: Nequi y / o DaviPlata.\n🔹 Activar o desactivar el filtro por monto.\n🔹 Establecer el límite de monto (pesos): solo se leerán notificaciones menores a ese valor.\n🔹 Pulsa &quot;Guardar&quot; para aplicar los cambios."
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
-
-        <!-- Sección 5: Estado del botón -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:orientation="horizontal"
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1AFFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#26FFFFFF"
+            app:strokeWidth="1dp"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subtitleText">
+            app:layout_constraintTop_toBottomOf="@id/cardStep3">
 
-            <TextView
-                android:layout_width="24dp"
-                android:layout_height="24dp"
-                android:background="@drawable/bg_dot"
-                android:backgroundTint="@color/status_waiting"
-                android:fontFamily="sans-serif-medium"
-                android:gravity="center"
-                android:text="5"
-                android:textColor="@color/white"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:fontFamily="sans-serif-medium"
-                android:text="Estado del botón"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:textStyle="bold" />
+                android:orientation="horizontal"
+                android:padding="16dp">
 
-        </LinearLayout>
+                <TextView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_dot"
+                    android:backgroundTint="@color/power_coral"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="4"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-        <TextView
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Configuración (Ajustes)"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="sans-serif"
+                        android:lineSpacingExtra="2dp"
+                        android:text="Selecciona bancos activos (Nequi, DaviPlata), activa el filtro por monto y establece el límite en pesos."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Tarjeta 5: Estado del botón -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/cardStep5"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:fontFamily="sans-serif"
-            android:lineSpacingExtra="4dp"
-            android:text="• 🟢 Verde = servicio activo y escuchando.\n• 🔴 Rojo = servicio apagado.\n• 🟡 Amarillo = sesión expirada.\n\nSi sales de la pantalla y vuelves, el botón y el contador se actualizan solos."
-            android:textColor="@color/text_secondary"
-            android:textSize="14sp" />
+            android:layout_marginTop="12dp"
+            app:cardBackgroundColor="#1AFFFFFF"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="#26FFFFFF"
+            app:strokeWidth="1dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/cardStep4">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_dot"
+                    android:backgroundTint="@color/status_waiting"
+                    android:fontFamily="sans-serif-medium"
+                    android:gravity="center"
+                    android:text="5"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:fontFamily="sans-serif-medium"
+                        android:text="Estado del botón"
+                        android:textColor="@color/white"
+                        android:textSize="16sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="sans-serif"
+                        android:lineSpacingExtra="2dp"
+                        android:text="🟢 Verde = activo y escuchando. 🔴 Rojo = apagado. 🟡 Amarillo = sesión expirada."
+                        android:textColor="@color/text_secondary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- Nota final -->
         <TextView
@@ -298,13 +388,13 @@
             android:layout_marginTop="28dp"
             android:fontFamily="sans-serif-medium"
             android:lineSpacingExtra="4dp"
-            android:text="¿Necesitas ayuda? Reinicia la app y vuelve a activar el servicio desde Inicio."
+            android:text="¿Necesitas ayuda? Reinicia la app y activa el servicio desde Inicio."
             android:textColor="@color/text_tertiary"
             android:textSize="13sp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/subtitleText" />
+            app:layout_constraintTop_toBottomOf="@id/cardStep5" />
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.core.widget.NestedScrollView>
