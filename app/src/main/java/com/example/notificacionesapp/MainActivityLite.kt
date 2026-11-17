@@ -132,11 +132,11 @@ class MainActivityLite : AppCompatActivity(), TextToSpeech.OnInitListener {
     }
 
     fun toggleNotificationService(enable: Boolean) {
-        val intent = Intent(this, NotificationService::class.java)
+        val intent = Intent(this, NotificationServiceLite::class.java)
         intent.action = if (enable) {
-            NotificationService.ACTION_START_SERVICE
+            NotificationServiceLite.ACTION_START_SERVICE
         } else {
-            NotificationService.ACTION_STOP_SERVICE
+            NotificationServiceLite.ACTION_STOP_SERVICE
         }
 
         try {
@@ -146,7 +146,7 @@ class MainActivityLite : AppCompatActivity(), TextToSpeech.OnInitListener {
                 startService(intent)
             }
 
-            NotificationService.isServiceActive = enable
+            NotificationServiceLite.isServiceActive = enable
 
             if (!enable) {
                 tts.speak(getString(R.string.service_deactivated), TextToSpeech.QUEUE_FLUSH, null, "switch_off")

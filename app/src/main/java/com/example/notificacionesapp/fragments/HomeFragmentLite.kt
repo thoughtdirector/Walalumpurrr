@@ -16,7 +16,7 @@ import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import com.example.notificacionesapp.MainActivityLite
-import com.example.notificacionesapp.NotificationService
+import com.example.notificacionesapp.NotificationServiceLite
 import com.example.notificacionesapp.SessionAlarmManager
 import com.example.notificacionesapp.SessionExpirationReceiver
 import com.example.notificacionesapp.R
@@ -122,14 +122,14 @@ class HomeFragmentLite : BaseFragment<FragmentHomeLiteBinding>() {
     }
 
     /**
-     * Sincroniza la UI con la fuente de verdad (NotificationService.isServiceActive).
+     * Sincroniza la UI con la fuente de verdad (NotificationServiceLite.isServiceActive).
      * Si el servicio está activo pero la sesión expiró, lo detiene y avisa por TTS.
      * No reinicia el contador ni detiene el servicio solo por navegar entre pantallas.
      */
     private fun checkExpirationAndSync() {
         val mainActivity = activity as? MainActivityLite ?: return
 
-        val serviceActive = NotificationService.isServiceActive
+        val serviceActive = NotificationServiceLite.isServiceActive
         val expired = activationTimestamp != 0L && isSessionExpired()
 
         if (serviceActive && expired) {
@@ -196,7 +196,7 @@ class HomeFragmentLite : BaseFragment<FragmentHomeLiteBinding>() {
     private fun setupSoundButton() {
         binding.btnSound.setOnClickListener {
             val mainActivity = activity as? MainActivityLite ?: return@setOnClickListener
-            if (NotificationService.isServiceActive && !isSessionExpired()) {
+            if (NotificationServiceLite.isServiceActive && !isSessionExpired()) {
                 mainActivity.testTTS(getString(R.string.service_working_correctly))
             } else {
                 Toast.makeText(requireContext(), getString(R.string.activate_service_first), Toast.LENGTH_SHORT).show()
@@ -215,7 +215,7 @@ class HomeFragmentLite : BaseFragment<FragmentHomeLiteBinding>() {
     }
 
     /**
-     * Fuente de verdad: NotificationService.isServiceActive.
+     * Fuente de verdad: NotificationServiceLite.isServiceActive.
      * Nunca sobrescribe ese estado estático desde la etiqueta de un botón,
      * para evitar que al recrearse la vista (Home <-> Info) el servicio se apague
      * por error y el botón quede desincronizado.
@@ -224,7 +224,7 @@ class HomeFragmentLite : BaseFragment<FragmentHomeLiteBinding>() {
         val mainActivity = (activity as? MainActivityLite) ?: return
 
         val expired = activationTimestamp != 0L && isSessionExpired()
-        val serviceActive = NotificationService.isServiceActive
+        val serviceActive = NotificationServiceLite.isServiceActive
 
         // Si el servicio sigue activo pero la sesión expiró, lo detiene y avisa.
         if (serviceActive && expired) {
