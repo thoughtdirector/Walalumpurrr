@@ -1,8 +1,8 @@
 # Política de Privacidad — NotiBank Lite
 
 **Fecha de entrada en vigor:** 17 de noviembre de 2026  
-**Responsable del tratamiento:** NotiBank Lite / NotificacionesApp  
-**Contacto de privacidad:** privacidad@notibank.co (ejemplo; actualizar con el canal real)
+**Responsable del tratamiento:** Por definir  
+**Contacto de privacidad:** Por definir
 
 ---
 
@@ -16,9 +16,9 @@ Al instalar, acceder o usar NotiBank Lite, usted acepta expresamente el tratamie
 
 ## 2. Responsable del tratamiento
 
-**Nombre:** NotificacionesApp / NotiBank Lite  
-**Canal de atención para derechos de los titulares:** privacidad@notibank.co  
-**Domicilio:** [Insertar dirección legal en Colombia]
+**Nombre:** Por definir  
+**Canal de atención para derechos de los titulares:** Por definir  
+**Domicilio:** Por definir
 
 El responsable es quien decide sobre la base de datos, el propósito del tratamiento y las medidas de seguridad aplicables.
 
@@ -84,7 +84,7 @@ f) **Acceder en forma gratuita** a sus datos personales al menos una vez al mes.
 
 Para ejercer cualquiera de los derechos anteriores, envíe una solicitud escrita al canal de privacidad:
 
-**Correo:** privacidad@notibank.co  
+**Correo:** Por definir  
 **Asunto:** «Derechos de titular — NotiBank Lite»  
 **Contenido mínimo:** nombre completo, documento de identidad, derecho que solicita, datos de contacto y firma.
 
@@ -137,10 +137,10 @@ Esta política es vigente a partir de su publicación. El responsable podrá mod
 
 Para cualquier duda, queja o solicitud relacionada con esta política o con el tratamiento de sus datos personales:
 
-**Responsable:** NotiBank Lite / NotificacionesApp  
-**Correo de privacidad:** privacidad@notibank.co  
-**Teléfono:** [Insertar número de contacto]  
-**Dirección:** [Insertar dirección física en Colombia]
+**Responsable:** Por definir  
+**Correo de privacidad:** Por definir  
+**Teléfono:** Por definir  
+**Dirección:** Por definir
 
 ---
 
