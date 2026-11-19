@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,7 @@ import com.example.notificacionesapp.databinding.ActivityMainLiteBinding
 import com.example.notificacionesapp.fragments.HomeFragmentLite
 import com.example.notificacionesapp.fragments.InfoFragmentLite
 import com.example.notificacionesapp.fragments.SettingsFragmentLite
+import com.example.notificacionesapp.NotificationServiceLite
 import com.google.android.material.bottomnavigation.BottomNavigationView
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -65,6 +67,17 @@ class MainActivityLite : AppCompatActivity(), TextToSpeech.OnInitListener {
         if (savedInstanceState == null) {
             loadFragment(HomeFragmentLite())
             binding.bottomNavigation.selectedItemId = R.id.nav_home
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Auto-arranque: si hay sesión activa pero el servicio no está corriendo,
+        // lo iniciamos automáticamente al entrar a la app.
+        val prefs = getSharedPreferences("lite_session_prefs", Context.MODE_PRIVATE)
+        val activationTimestamp = prefs.getLong("activation_timestamp", 0L)
+        if (activationTimestamp != 0L && !NotificationServiceLite.isServiceActive) {
+            toggleNotificationService(true)
         }
     }
 

@@ -4,8 +4,9 @@ import com.example.notificacionesapp.notification.NotificationProcessor
 import java.util.regex.Pattern
 
 class NequiNotificationProcessor : NotificationProcessor {
-    // Normal: "NOMBRE te envió 50.000, ¡lo mejor!"
-    // QR: "NOMBRE te envió $10 a través de QR a tu nequi, ¡lo mejor!"
+    // Captura transferencias normales y por QR:
+    // "NOMBRE te envió 50.000, ¡lo mejor!"
+    // "NOMBRE te envió $10 a través de QR a tu nequi, ¡lo mejor!"
     private val nequiPattern = Pattern.compile(
         "([A-ZÁÉÍÓÚÑ\\s]+) te envió \\$?([0-9,.]+)(?: a través de QR)?(?: a tu nequi)?,?\\s*¡lo mejor!",
         Pattern.CASE_INSENSITIVE
@@ -27,17 +28,16 @@ class NequiNotificationProcessor : NotificationProcessor {
         val brebMatcher = brebPattern.matcher(content)
         if (brebMatcher.find()) {
             val monto = brebMatcher.group(1)
-            return "Recibiste $monto pesos por Bre-B"
+            return "te enviaron $monto pesos por breve a tu nequi"
         }
 
+        // Nequi normal (regex original)
         val matcher = nequiPattern.matcher(content)
         if (matcher.find()) {
-            val nombre = matcher.group(1).trim()
             val monto = matcher.group(2)
-            val isQr = content.contains("QR") || content.contains("qr")
-            val tipo = if (isQr) "por QR a tu Nequi" else "pesos por nequi"
-            return "$nombre te envió $monto $tipo"
+            return "Recibiste $monto pesos por nequi"
         }
+
         return null
     }
 
@@ -45,11 +45,11 @@ class NequiNotificationProcessor : NotificationProcessor {
         val metadata = mutableMapOf<String, String>()
         try {
             metadata["appName"] = "Nequi"
-            metadata["type"] = "NEQUI"
-            metadata["title"] = "Transferencia recibida"
 
-            if (processedMessage.contains(" por Bre-B")) {
-                val amount = processedMessage.replace(Regex("(Recibiste | pesos por Bre-B|\\$)"), "").trim()
+            if (processedMessage.contains(" por breve a tu nequi")) {
+                metadata["type"] = "BRE_B"
+                metadata["title"] = "Transferencia Bre-B"
+                val amount = processedMessage.replace(Regex("(te enviaron | pesos por breve a tu nequi|\\$)"), "").trim()
                 metadata["sender"] = "Bre-B"
                 metadata["amount"] = amount
             } else if (processedMessage.contains(" te envió ")) {
@@ -58,6 +58,10 @@ class NequiNotificationProcessor : NotificationProcessor {
                     val sender = parts[0].trim()
                     val rest = parts[1].trim()
                     val amount = rest.replace(Regex("( pesos por nequi| por QR a tu Nequi|\\$|,)"), "").trim()
+
+                    metadata["appName"] = "Nequi"
+                    metadata["type"] = "NEQUI"
+                    metadata["title"] = "Transferencia recibida"
                     metadata["sender"] = sender
                     metadata["amount"] = amount
                 }

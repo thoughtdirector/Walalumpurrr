@@ -42,11 +42,22 @@ class SettingsFragmentLite : BaseFragment<FragmentSettingsLiteBinding>() {
         try {
             val appPrefs = requireContext().getSharedPreferences("app_settings", Context.MODE_PRIVATE)
 
-            // Bancos activos (valores por defecto: ambos activados)
+            // Si no existe configuración previa, establecer valores por defecto:
+            // Nequi y DaviPlata encendidos, filtro de monto apagado.
+            // Se guarda inmediatamente (commit síncrono) para que persistan
+            // desde la primera instalación y no queden solo "en apariencia".
+            if (!appPrefs.contains("app_nequi") || !appPrefs.contains("app_daviplata")) {
+                appPrefs.edit().apply {
+                    putBoolean("app_nequi", true)
+                    putBoolean("app_daviplata", true)
+                }.commit()
+            }
+
+            // Bancos activos (por defecto encendidos)
             binding.checkNequi.isChecked = appPrefs.getBoolean("app_nequi", true)
             binding.checkDaviPlata.isChecked = appPrefs.getBoolean("app_daviplata", true)
 
-            // Filtro por monto
+            // Filtro por monto (por defecto apagado)
             binding.checkAmountLimit.isChecked = amountSettings?.isAmountLimitEnabled() ?: false
             val threshold = amountSettings?.getAmountThreshold() ?: 100000
             val formatted = NumberFormat.getInstance(Locale.getDefault()).format(threshold)

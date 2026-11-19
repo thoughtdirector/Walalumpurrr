@@ -181,10 +181,9 @@ class NotificationServiceLite : NotificationListenerService() {
 
     private fun speakOut(text: String) {
         Log.d("NotificationServiceLite", "TTS: $text")
-        val intent = Intent("com.example.notibanklite.TTS_SPEAK")
+        val intent = Intent(this, TtsService::class.java)
         intent.putExtra("text", text)
-        intent.setPackage(packageName)
-        sendBroadcast(intent)
+        startService(intent)
     }
 
     override fun onDestroy() {
